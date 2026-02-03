@@ -1,0 +1,51 @@
+### site identity
+title: Calvin Wong
+description: PhD Student in Mathematics at the University of Tennessee, Knoxville
+
+baseurl: ""
+url: "https://calvin1127xd.github.io"
+email: mwong4@utk.edu
+
+highlighter: rouge
+markdown: kramdown
+
+# Social media links in footer
+github: "Calvin1127XD"
+linkedin:
+researchgate:
+orcid:
+google_analytics:
+scopus:
+google_scholar:
+
+# Tracker
+analytics:
+
+# optimization -> compress.html
+compress_html:
+  clippings: [html, div, p, ul, td, h1, h2, h3, h4, link, meta, footer, nav, img, header, hr, br, head, style, li, ul, ol, time, main, script, title]
+  comments: ["<!-- ", " -->"]
+  endings: [all]
+  ignore:
+    envs: [local]
+  blanklines: false
+  profile: false
+  startings: []
+
+sass:
+  sass_dir: /assets/css/_sass
+  style: compressed
+
+include:
+  - _pages
+  - _bibliography
+
+exclude:
+  - README.md
+  - LICENSE.md
+
+plugins:
+  - jekyll-seo-tag
+  - jekyll-paginate
+  - jekyll-email-protect
+  - jekyll-target-blank

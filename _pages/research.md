@@ -30,6 +30,7 @@ published: true
 ### Invited and Conference Talks
 
 - **SIAM SEAS 2025 (Invited Talk):** "Gamma-Convergence and Asymptotic Analysis for a Diffuse Domain Problem with Transmission Boundary Conditions: Part 2, Numerical Confirmation"
+- **UARK-SIAM-CSS 2025 Conference (Invited Talk), University of Arkansas, Fayetteville, AR:** "Gamma-Convergence and Asymptotic Analysis for a Diffuse Domain Problem with Transmission Boundary Conditions: Part 2, Numerical Confirmation"
 - **Workshop on Theoretical and Numerical Challenges in Materials Science (2024), University of Alabama**
 - **UROP Workshop (2022), CUHK:** "Preliminary Diagnosis of Childhood Obstructive Sleep Apnea using 2D Images by Quasi-Conformal Geometry"
 
@@ -53,3 +54,7 @@ published: true
 - Department of Mathematics Fellowship (UTK, 2022)
 - UROP Gold Award (CUHK, 2022)
 - Chung Chi College Kunkle and Pommerenke Full Tuition Scholarship (CUHK)
+- Chung Chi College Departmental Prize - Enrichment Mathematics (CUHK, 2022)
+- Chung Chi College Scholarship for Excellence (CUHK, 2021)
+- Faculty of Science Dean's List (CUHK, five-time awardee)
+- Undergraduate Mathematics Scholarship, Department of Mathematics (CUHK, five-time awardee)

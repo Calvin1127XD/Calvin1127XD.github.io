@@ -7,6 +7,10 @@ published: true
 
 ## CV
 
+### Full CV (PDF)
+
+- [Download CV - February 3, 2026]({{site.baseurl}}/files/CV/CalvinCV_Feb3_2026.pdf)
+
 ### Education
 
 - **Ph.D. in Mathematics**, University of Tennessee, Knoxville (expected 2027)
@@ -36,5 +40,10 @@ published: true
 - Dorothea and Edgar D. Eaves Graduate Student Teaching Award - Senior (2025)
 - Department of Mathematics Fellowship, UTK (2022)
 - UROP Gold Award, CUHK (2022)
+- Chung Chi College Departmental Prize - Enrichment Mathematics, CUHK (2022)
+- Chung Chi College Scholarship for Excellence, CUHK (2021)
+- Faculty of Science Dean's List, CUHK (five-time awardee)
+- Chung Chi College Kunkle and Pommerenke Full Tuition Scholarship, CUHK (three-time awardee)
+- Undergraduate Mathematics Scholarship, CUHK Department of Mathematics (five-time awardee)
 
-For the latest full CV or supporting materials, please email me at [mwong4@utk.edu](mailto:mwong4@utk.edu).
+For the latest CV updates or supporting materials, please email me at [mwong4@vols.utk.edu](mailto:mwong4@vols.utk.edu).

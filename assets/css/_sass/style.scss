@@ -174,7 +174,8 @@ blockquote {
 /* Multigrid book page cover placement */
 .mgbook-cover {
   float: right;
-  width: min(38%, 260px);
+  width: 260px;
+  max-width: 40%;
   margin: 0 0 1rem 1.2rem;
   text-align: center;
 }

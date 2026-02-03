@@ -170,3 +170,33 @@ blockquote {
 
 .scroll::-webkit-scrollbar {
   display: none; }
+
+/* Multigrid book page cover placement */
+.mgbook-cover {
+  float: right;
+  width: min(38%, 260px);
+  margin: 0 0 1rem 1.2rem;
+  text-align: center;
+}
+
+.mgbook-cover img {
+  width: 100%;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  display: block;
+}
+
+.mgbook-cover p {
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+@include media-query($on-palm) {
+  .mgbook-cover {
+    float: none;
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto 1rem auto;
+  }
+}

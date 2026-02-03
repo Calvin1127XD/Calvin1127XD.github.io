@@ -116,6 +116,48 @@ blockquote {
   }
 }
 
+.site-header {
+  margin-bottom: 1rem;
+  padding: 1rem 1rem 0.85rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(96, 193, 125, 0.08), rgba(96, 193, 125, 0.02));
+}
+
+.post-description {
+  margin: 0.4em 0 0.9em;
+  line-height: 1.4;
+}
+
+.site-content {
+  margin-top: 0.9rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.top-nav {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem 0.9rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.top-nav a {
+  margin-right: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .site-header {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(96, 193, 125, 0.1), rgba(96, 193, 125, 0.03));
+  }
+
+  .site-content {
+    border-top-color: rgba(255, 255, 255, 0.22);
+  }
+}
+
 /* Pagination style in index/home page */
 .pagination {
   margin: 2em 0;
@@ -170,6 +212,14 @@ blockquote {
 
 .scroll::-webkit-scrollbar {
   display: none; }
+
+@include media-query($on-palm) {
+  .top-nav {
+    white-space: normal;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
 
 /* Multigrid book page cover placement */
 .mgbook-cover {

@@ -5,7 +5,7 @@ permalink: /github-expose/
 published: true
 ---
 
-## GitHub Expose
+## GitHub Exposé
 
 A few repositories that show how I combine mathematical modeling, programming, and modern LLM-assisted research workflows.
 

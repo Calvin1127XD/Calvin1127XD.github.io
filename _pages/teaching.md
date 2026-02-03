@@ -43,3 +43,9 @@ published: true
 > "Calvin is a fantastic TA. He takes time to explain concepts clearly and checks that everyone follows."
 
 > "He was always patient, positive, and supportive in office hours."
+
+> "Calvin is a fantastic TA... In his office hours, I think he was funny."
+
+> "I loved how he always made jokes while teaching us calculus."
+
+> "He was always positive and light-hearted, making an 8am course something I looked forward to."

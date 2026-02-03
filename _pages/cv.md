@@ -39,7 +39,7 @@ published: true
 - Dawn and Lawrence Taylor Graduate Fellowship (2025)
 - Dorothea and Edgar D. Eaves Graduate Student Teaching Award - Senior (2025)
 - Department of Mathematics Fellowship, UTK (2022)
-- UROP Gold Award, CUHK (2022)
+- Undergraduate Research Opportunities Programme (UROP) Gold Award, CUHK (2022)
 - Chung Chi College Departmental Prize - Enrichment Mathematics, CUHK (2022)
 - Chung Chi College Scholarship for Excellence, CUHK (2021)
 - Faculty of Science Dean's List, CUHK (five-time awardee)

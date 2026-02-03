@@ -4,12 +4,13 @@ permalink: /
 profile:
   align: right
   image: CalvinPortrait.png
+  width: "31%"
 published: true
 ---
 
 ## About
 
-I am **Calvin Wong**, a PhD student in Mathematics at the University of Tennessee, Knoxville (expected graduation: 2027). My work sits at the intersection of numerical analysis, PDE, scientific computing, and mathematical modeling.
+I am **Calvin (Ming-Hei) Wong**, a PhD student in Mathematics at the University of Tennessee, Knoxville (expected graduation: 2027). My work sits at the intersection of numerical analysis, PDE, scientific computing, and mathematical modeling.
 
 I am a co-author (with Steven M. Wise and Abner J. Salgado) of the De Gruyter textbook **Multigrid Methods: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems**. I also co-authored two recent papers on diffuse domain approximations with transmission-type boundary conditions, with a focus on asymptotics, numerics, and Gamma-convergence.
 

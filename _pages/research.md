@@ -19,13 +19,13 @@ published: true
 
 #### Book
 
-- S. M. Wise, A. J. Salgado, and M. H. Wong, *Multigrid Methods: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems*, De Gruyter, 2025. ISBN: 978-3-11-135488-0. [Publisher page](https://www.degruyterbrill.com/document/isbn/9783111354880/html)
+- S. M. Wise, A. J. Salgado, and **M. H. Wong**, *Multigrid Methods: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems*, De Gruyter, 2025. ISBN: 978-3-11-135488-0. [Publisher page](https://www.degruyterbrill.com/document/isbn/9783111354880/html)
 
 #### Journal Articles
 
-1. T. Luong, T. Mengesha, S. M. Wise, and M. H. Wong, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions II: Gamma-Convergence*, **International Journal of Numerical Analysis and Modeling**, 22(5):728-744, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1031)
-2. T. Luong, T. Mengesha, S. M. Wise, and M. H. Wong, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions I: Asymptotic Analysis and Numerics*, **International Journal of Numerical Analysis and Modeling**, 22(5):694-727, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1030)
-3. M.-H. Wong, M. Li, K.-M. Tam, H.-M. Yuen, C.-T. Au, K. C.-C. Chan, A. M. Li, and L.-M. Lui, *A Quasiconformal-Based Geometric Model for Craniofacial Analysis and Its Application*, **Axioms**, 12(4):393, 2023. [DOI](https://doi.org/10.3390/axioms12040393)
+1. T. Luong, T. Mengesha, S. M. Wise, and **M. H. Wong**, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions II: Gamma-Convergence*, **International Journal of Numerical Analysis and Modeling**, 22(5):728-744, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1031)
+2. T. Luong, T. Mengesha, S. M. Wise, and **M. H. Wong**, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions I: Asymptotic Analysis and Numerics*, **International Journal of Numerical Analysis and Modeling**, 22(5):694-727, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1030)
+3. **M.-H. Wong**, M. Li, K.-M. Tam, H.-M. Yuen, C.-T. Au, K. C.-C. Chan, A. M. Li, and L.-M. Lui, *A Quasiconformal-Based Geometric Model for Craniofacial Analysis and Its Application*, **Axioms**, 12(4):393, 2023. [DOI](https://doi.org/10.3390/axioms12040393)
 
 ### Invited and Conference Talks
 
@@ -44,15 +44,16 @@ published: true
   - ORNL + UTK collaboration
   - Optimization workflow design for scientific applications
 
-- **Mathematical Imaging for Defect Detection**
-  - Curvature/Beltrami-based and Fourier-based analysis pipelines
+- **Medical Imaging for Early Diagnosis of Childhood Obstructive Sleep Apnea**
+  - Quasiconformal-geometry-based craniofacial analysis from 2D images
+  - Classification workflow development for early-stage diagnosis
 
 ### Selected Awards
 
 - Dawn and Lawrence Taylor Graduate Fellowship (UTK, 2025)
 - Dorothea and Edgar D. Eaves Graduate Student Teaching Award - Senior (UTK, 2025)
 - Department of Mathematics Fellowship (UTK, 2022)
-- UROP Gold Award (CUHK, 2022)
+- Undergraduate Research Opportunities Programme (UROP) Gold Award (CUHK, 2022)
 - Chung Chi College Kunkle and Pommerenke Full Tuition Scholarship (CUHK)
 - Chung Chi College Departmental Prize - Enrichment Mathematics (CUHK, 2022)
 - Chung Chi College Scholarship for Excellence (CUHK, 2021)

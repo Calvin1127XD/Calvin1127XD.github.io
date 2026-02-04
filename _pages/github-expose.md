@@ -9,14 +9,6 @@ published: true
 
 A few repositories that show how I combine mathematical modeling, programming, and modern LLM-assisted research workflows.
 
-### MathThermoCourseLatex
-
-<div class="repo-card">
-  <p><strong>Repository:</strong> <a href="https://github.com/Calvin1127XD/MathThermoCourseLatex">Calvin1127XD/MathThermoCourseLatex</a></p>
-  <p>This repo reflects my modern LLM coding workflow for technical writing and course development. I built reusable agentic workflows (including custom skills) to convert, update, and proofread handwritten lecture notes into structured LaTeX course notes.</p>
-  <p><a href="https://github.com/Calvin1127XD/MathThermoCourseLatex">Open repository</a></p>
-</div>
-
 ### CatFourierEmailSignature
 
 <div class="cat-fourier-two-col">

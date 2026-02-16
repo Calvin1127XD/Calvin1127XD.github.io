@@ -135,6 +135,7 @@
   margin-bottom: 1rem;
 }
 
+.repo-two-col,
 .cat-fourier-two-col {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -142,6 +143,7 @@
   align-items: start;
 }
 
+.repo-preview img,
 .cat-fourier-preview img {
   width: 100%;
   max-width: 360px;
@@ -152,10 +154,12 @@
 
 @include media-query($on-palm) {
   @media screen and (max-width: $on-palm) {
+    .repo-two-col,
     .cat-fourier-two-col {
       grid-template-columns: 1fr;
     }
 
+    .repo-preview img,
     .cat-fourier-preview img {
       max-width: 100%;
     }

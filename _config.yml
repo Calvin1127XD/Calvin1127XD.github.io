@@ -43,6 +43,7 @@ include:
 exclude:
   - README.md
   - LICENSE.md
+  - "How do I, as a scientist, learn and adapt to Agentic coding, and general LLM interaction guide"
 
 plugins:
   - jekyll-seo-tag

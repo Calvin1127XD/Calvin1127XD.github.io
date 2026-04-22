@@ -18,3 +18,6 @@ workspace.code-workspace
 
 .texpadtmp
 .DS_Store
+
+# Local talk source/export artifacts; the deployable copy lives in talks/agentic-coding/.
+How do I, as a scientist, learn and adapt to Agentic coding, and general LLM interaction guide/

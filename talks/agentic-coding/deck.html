@@ -1,0 +1,3073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>How I, as a scientist, learn and adapt to agentic coding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, { delimiters: [ {left:'$$', right:'$$', display:true}, {left:'\\[', right:'\\]', display:true}, {left:'\\(', right:'\\)', display:false}, {left:'$', right:'$', display:false} ], throwOnError:false });"></script>
+<script>
+/**
+ * <deck-stage> — reusable web component for HTML decks.
+ *
+ * Handles:
+ *  (a) speaker notes — reads <script type="application/json" id="speaker-notes">
+ *      and posts {slideIndexChanged: N} to the parent window on nav.
+ *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys.
+ *  (c) press R to reset to slide 0 (with a tasteful keyboard hint).
+ *  (d) bottom-center overlay showing slide count + hints, fades out on idle.
+ *  (e) auto-scaling — inner canvas is a fixed design size (default 1920×1080)
+ *      scaled with `transform: scale()` to fit the viewport, letterboxed.
+ *      Set the `noscale` attribute to render at authored size (1:1) — the
+ *      PPTX exporter sets this so its DOM capture sees unscaled geometry.
+ *  (f) print — `@media print` lays every slide out as its own page at the
+ *      design size, so the browser's Print → Save as PDF produces a clean
+ *      one-page-per-slide PDF with no extra setup.
+ *
+ * Slides are HIDDEN, not unmounted. Non-active slides stay in the DOM with
+ * `visibility: hidden` + `opacity: 0`, so their state (videos, iframes,
+ * form inputs, React trees) is preserved across navigation.
+ *
+ * Lifecycle event — the component dispatches a `slidechange` CustomEvent on
+ * itself whenever the active slide changes (including the initial mount).
+ * The event bubbles and composes out of shadow DOM, so you can listen on
+ * the <deck-stage> element or on document:
+ *
+ *   document.querySelector('deck-stage').addEventListener('slidechange', (e) => {
+ *     e.detail.index         // new 0-based index
+ *     e.detail.previousIndex // previous index, or -1 on init
+ *     e.detail.total         // total slide count
+ *     e.detail.slide         // the new active slide element
+ *     e.detail.previousSlide // the prior slide element, or null on init
+ *     e.detail.reason        // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+ *   });
+ *
+ * Persistence: current slide index is saved to localStorage keyed by the
+ * document path, so refresh returns you to the same place.
+ *
+ * Usage:
+ *   <deck-stage width="1920" height="1080">
+ *     <section data-label="Title">...</section>
+ *     <section data-label="Agenda">...</section>
+ *   </deck-stage>
+ *
+ * Slides are the direct element children of <deck-stage>. Each slide is
+ * automatically tagged with:
+ *   - data-screen-label="NN Label"   (1-indexed, for comment flow)
+ *   - data-om-validate="no_overflowing_text,no_overlapping_text,slide_sized_text"
+ */
+
+(() => {
+  const DESIGN_W_DEFAULT = 1920;
+  const DESIGN_H_DEFAULT = 1080;
+  const STORAGE_PREFIX = 'deck-stage:slide:';
+  const OVERLAY_HIDE_MS = 1800;
+  const VALIDATE_ATTR = 'no_overflowing_text,no_overlapping_text,slide_sized_text';
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  const stylesheet = `
+    :host {
+      position: fixed;
+      inset: 0;
+      display: block;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas {
+      position: relative;
+      transform-origin: center center;
+      flex-shrink: 0;
+      background: #fff;
+      will-change: transform;
+    }
+
+    /* Slides live in light DOM (via <slot>) so authored CSS still applies.
+       We absolutely position each slotted child to stack them. */
+    ::slotted(*) {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      box-sizing: border-box !important;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    ::slotted([data-deck-active]) {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    /* Tap zones for mobile — back/forward thirds like Stories.
+       Transparent, no visible UI, don't block the overlay. */
+    .tapzones {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      z-index: 2147482000;
+      pointer-events: none;
+    }
+    .tapzone {
+      flex: 1;
+      pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Only activate tap zones on coarse pointers (touch devices). */
+    @media (hover: hover) and (pointer: fine) {
+      .tapzones { display: none; }
+    }
+
+    .overlay {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translate(-50%, 6px) scale(0.92);
+      filter: blur(6px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: #000;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 12px;
+      font-feature-settings: "tnum" 1;
+      letter-spacing: 0.01em;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 260ms ease, transform 260ms cubic-bezier(.2,.8,.2,1), filter 260ms ease;
+      transform-origin: center bottom;
+      z-index: 2147483000;
+      user-select: none;
+    }
+    .overlay[data-visible] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, 0) scale(1);
+      filter: blur(0);
+    }
+
+    .btn {
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      color: inherit;
+      font: inherit;
+      cursor: default;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 999px;
+      color: rgba(255,255,255,0.72);
+      transition: background 140ms ease, color 140ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn:active { background: rgba(255,255,255,0.18); }
+    .btn:focus { outline: none; }
+    .btn:focus-visible { outline: none; }
+    .btn::-moz-focus-inner { border: 0; }
+    .btn svg { width: 14px; height: 14px; display: block; }
+    .btn.reset {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      padding: 0 10px 0 12px;
+      gap: 6px;
+      color: rgba(255,255,255,0.72);
+    }
+    .btn.reset .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(255,255,255,0.88);
+      background: rgba(255,255,255,0.12);
+      border-radius: 4px;
+    }
+
+    .count {
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      font-weight: 500;
+      padding: 0 8px;
+      min-width: 42px;
+      text-align: center;
+      font-size: 12px;
+    }
+    .count .sep { color: rgba(255,255,255,0.45); margin: 0 3px; font-weight: 400; }
+    .count .total { color: rgba(255,255,255,0.55); }
+
+    .divider {
+      width: 1px;
+      height: 14px;
+      background: rgba(255,255,255,0.18);
+      margin: 0 2px;
+    }
+
+    /* ── Print: one page per slide, no chrome ────────────────────────────
+       The screen layout stacks every slide at inset:0 inside a scaled
+       canvas; for print we want them in document flow at the authored
+       design size so the browser paginates one slide per sheet. The
+       @page size is set from the width/height attributes via the inline
+       <style id="deck-stage-print-page"> that connectedCallback injects
+       into <head> (the @page at-rule has no effect inside shadow DOM). */
+    @media print {
+      :host {
+        position: static;
+        inset: auto;
+        background: none;
+        overflow: visible;
+        color: inherit;
+      }
+      .stage { position: static; display: block; }
+      .canvas {
+        transform: none !important;
+        width: auto !important;
+        height: auto !important;
+        background: none;
+        will-change: auto;
+      }
+      ::slotted(*) {
+        position: relative !important;
+        inset: auto !important;
+        width: var(--deck-design-w) !important;
+        height: var(--deck-design-h) !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto;
+        break-after: page;
+        page-break-after: always;
+        break-inside: avoid;
+        overflow: hidden;
+      }
+      ::slotted(*:last-child) {
+        break-after: auto;
+        page-break-after: auto;
+      }
+      .overlay, .tapzones { display: none !important; }
+    }
+  `;
+
+  class DeckStage extends HTMLElement {
+    static get observedAttributes() { return ['width', 'height', 'noscale']; }
+
+    constructor() {
+      super();
+      this._root = this.attachShadow({ mode: 'open' });
+      this._index = 0;
+      this._slides = [];
+      this._notes = [];
+      this._hideTimer = null;
+      this._mouseIdleTimer = null;
+      this._storageKey = STORAGE_PREFIX + (location.pathname || '/');
+
+      this._onKey = this._onKey.bind(this);
+      this._onResize = this._onResize.bind(this);
+      this._onSlotChange = this._onSlotChange.bind(this);
+      this._onMouseMove = this._onMouseMove.bind(this);
+      this._onTapBack = this._onTapBack.bind(this);
+      this._onTapForward = this._onTapForward.bind(this);
+    }
+
+    get designWidth() {
+      return parseInt(this.getAttribute('width'), 10) || DESIGN_W_DEFAULT;
+    }
+    get designHeight() {
+      return parseInt(this.getAttribute('height'), 10) || DESIGN_H_DEFAULT;
+    }
+
+    connectedCallback() {
+      this._render();
+      this._loadNotes();
+      this._syncPrintPageRule();
+      window.addEventListener('keydown', this._onKey);
+      window.addEventListener('resize', this._onResize);
+      window.addEventListener('mousemove', this._onMouseMove, { passive: true });
+      // Initial collection + layout happens via slotchange, which fires on mount.
+    }
+
+    disconnectedCallback() {
+      window.removeEventListener('keydown', this._onKey);
+      window.removeEventListener('resize', this._onResize);
+      window.removeEventListener('mousemove', this._onMouseMove);
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+      if (this._mouseIdleTimer) clearTimeout(this._mouseIdleTimer);
+    }
+
+    attributeChangedCallback() {
+      if (this._canvas) {
+        this._canvas.style.width = this.designWidth + 'px';
+        this._canvas.style.height = this.designHeight + 'px';
+        this._canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+        this._canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+        this._fit();
+        this._syncPrintPageRule();
+      }
+    }
+
+    _render() {
+      const style = document.createElement('style');
+      style.textContent = stylesheet;
+
+      const stage = document.createElement('div');
+      stage.className = 'stage';
+
+      const canvas = document.createElement('div');
+      canvas.className = 'canvas';
+      canvas.style.width = this.designWidth + 'px';
+      canvas.style.height = this.designHeight + 'px';
+      canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+      canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+
+      const slot = document.createElement('slot');
+      slot.addEventListener('slotchange', this._onSlotChange);
+      canvas.appendChild(slot);
+      stage.appendChild(canvas);
+
+      // Tap zones (mobile): left third = back, right third = forward.
+      const tapzones = document.createElement('div');
+      tapzones.className = 'tapzones export-hidden';
+      tapzones.setAttribute('aria-hidden', 'true');
+      const tzBack = document.createElement('div');
+      tzBack.className = 'tapzone tapzone--back';
+      const tzMid = document.createElement('div');
+      tzMid.className = 'tapzone tapzone--mid';
+      tzMid.style.pointerEvents = 'none';
+      const tzFwd = document.createElement('div');
+      tzFwd.className = 'tapzone tapzone--fwd';
+      tzBack.addEventListener('click', this._onTapBack);
+      tzFwd.addEventListener('click', this._onTapForward);
+      tapzones.append(tzBack, tzMid, tzFwd);
+
+      // Overlay: compact, solid black, with clickable controls.
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay export-hidden';
+      overlay.setAttribute('role', 'toolbar');
+      overlay.setAttribute('aria-label', 'Deck controls');
+      overlay.innerHTML = `
+        <button class="btn prev" type="button" aria-label="Previous slide" title="Previous (←)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+        </button>
+        <span class="count" aria-live="polite"><span class="current">1</span><span class="sep">/</span><span class="total">1</span></span>
+        <button class="btn next" type="button" aria-label="Next slide" title="Next (→)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+        </button>
+        <span class="divider"></span>
+        <button class="btn reset" type="button" aria-label="Reset to first slide" title="Reset (R)">Reset<span class="kbd">R</span></button>
+      `;
+
+      overlay.querySelector('.prev').addEventListener('click', () => this._go(this._index - 1, 'click'));
+      overlay.querySelector('.next').addEventListener('click', () => this._go(this._index + 1, 'click'));
+      overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
+
+      this._root.append(style, stage, tapzones, overlay);
+      this._canvas = canvas;
+      this._slot = slot;
+      this._overlay = overlay;
+      this._countEl = overlay.querySelector('.current');
+      this._totalEl = overlay.querySelector('.total');
+    }
+
+    /** @page must live in the document stylesheet — it's a no-op inside
+     *  shadow DOM. Inject/update a single <head> style tag so the print
+     *  sheet matches the design size and Save-as-PDF yields one slide per
+     *  page with no margins. */
+    _syncPrintPageRule() {
+      const id = 'deck-stage-print-page';
+      let tag = document.getElementById(id);
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = id;
+        document.head.appendChild(tag);
+      }
+      tag.textContent =
+        '@page { size: ' + this.designWidth + 'px ' + this.designHeight + 'px; margin: 0; } ' +
+        '@media print { html, body { margin: 0 !important; padding: 0 !important; background: none !important; overflow: visible !important; height: auto !important; } ' +
+        '* { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }';
+    }
+
+    _onSlotChange() {
+      this._collectSlides();
+      this._restoreIndex();
+      this._applyIndex({ showOverlay: false, broadcast: true, reason: 'init' });
+      this._fit();
+    }
+
+    _collectSlides() {
+      const assigned = this._slot.assignedElements({ flatten: true });
+      this._slides = assigned.filter((el) => {
+        // Skip template/style/script nodes even if someone slots them.
+        const tag = el.tagName;
+        return tag !== 'TEMPLATE' && tag !== 'SCRIPT' && tag !== 'STYLE';
+      });
+
+      this._slides.forEach((slide, i) => {
+        const n = i + 1;
+        // Determine a label for comment flow: prefer explicit data-label,
+        // then an existing data-screen-label, then first heading, else "Slide".
+        let label = slide.getAttribute('data-label');
+        if (!label) {
+          const existing = slide.getAttribute('data-screen-label');
+          if (existing) {
+            // Strip any leading number the author may have included.
+            label = existing.replace(/^\s*\d+\s*/, '').trim() || existing;
+          }
+        }
+        if (!label) {
+          const h = slide.querySelector('h1, h2, h3, [data-title]');
+          if (h) label = (h.textContent || '').trim().slice(0, 40);
+        }
+        if (!label) label = 'Slide';
+        slide.setAttribute('data-screen-label', `${pad2(n)} ${label}`);
+
+        // Validation attribute for comment flow / auto-checks.
+        if (!slide.hasAttribute('data-om-validate')) {
+          slide.setAttribute('data-om-validate', VALIDATE_ATTR);
+        }
+
+        slide.setAttribute('data-deck-slide', String(i));
+      });
+
+      if (this._totalEl) this._totalEl.textContent = String(this._slides.length || 1);
+      if (this._index >= this._slides.length) this._index = Math.max(0, this._slides.length - 1);
+    }
+
+    _loadNotes() {
+      const tag = document.getElementById('speaker-notes');
+      if (!tag) { this._notes = []; return; }
+      try {
+        const parsed = JSON.parse(tag.textContent || '[]');
+        if (Array.isArray(parsed)) this._notes = parsed;
+      } catch (e) {
+        console.warn('[deck-stage] Failed to parse #speaker-notes JSON:', e);
+        this._notes = [];
+      }
+    }
+
+    _restoreIndex() {
+      try {
+        const raw = localStorage.getItem(this._storageKey);
+        if (raw != null) {
+          const n = parseInt(raw, 10);
+          if (Number.isFinite(n) && n >= 0 && n < this._slides.length) {
+            this._index = n;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _persistIndex() {
+      try { localStorage.setItem(this._storageKey, String(this._index)); }
+      catch (e) { /* ignore */ }
+    }
+
+    _applyIndex({ showOverlay = true, broadcast = true, reason = 'init' } = {}) {
+      if (!this._slides.length) return;
+      const prev = this._prevIndex == null ? -1 : this._prevIndex;
+      const curr = this._index;
+      this._slides.forEach((s, i) => {
+        if (i === curr) s.setAttribute('data-deck-active', '');
+        else s.removeAttribute('data-deck-active');
+      });
+      if (this._countEl) this._countEl.textContent = String(curr + 1);
+      this._persistIndex();
+
+      if (broadcast) {
+        // (1) Legacy: host-window postMessage for speaker-notes renderers.
+        try { window.postMessage({ slideIndexChanged: curr }, '*'); } catch (e) {}
+
+        // (2) In-page CustomEvent on the <deck-stage> element itself.
+        //     Bubbles and composes out of shadow DOM so slide code can listen:
+        //       document.querySelector('deck-stage').addEventListener('slidechange', e => {
+        //         e.detail.index, e.detail.previousIndex, e.detail.total, e.detail.slide, e.detail.reason
+        //       });
+        const detail = {
+          index: curr,
+          previousIndex: prev,
+          total: this._slides.length,
+          slide: this._slides[curr] || null,
+          previousSlide: prev >= 0 ? (this._slides[prev] || null) : null,
+          reason: reason, // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+        };
+        this.dispatchEvent(new CustomEvent('slidechange', {
+          detail,
+          bubbles: true,
+          composed: true,
+        }));
+      }
+
+      this._prevIndex = curr;
+      if (showOverlay) this._flashOverlay();
+    }
+
+    _flashOverlay() {
+      if (!this._overlay) return;
+      this._overlay.setAttribute('data-visible', '');
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+      this._hideTimer = setTimeout(() => {
+        this._overlay.removeAttribute('data-visible');
+      }, OVERLAY_HIDE_MS);
+    }
+
+    _fit() {
+      if (!this._canvas) return;
+      // PPTX export sets noscale so the DOM capture sees authored-size
+      // geometry — the scaled canvas is in shadow DOM, so the exporter's
+      // resetTransformSelector can't reach .canvas.style.transform directly.
+      if (this.hasAttribute('noscale')) {
+        this._canvas.style.transform = 'none';
+        return;
+      }
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const s = Math.min(vw / this.designWidth, vh / this.designHeight);
+      this._canvas.style.transform = `scale(${s})`;
+    }
+
+    _onResize() { this._fit(); }
+
+    _onMouseMove() {
+      // Keep overlay visible while mouse moves; hide after idle.
+      this._flashOverlay();
+    }
+
+    _onTapBack(e) {
+      e.preventDefault();
+      this._go(this._index - 1, 'tap');
+    }
+
+    _onTapForward(e) {
+      e.preventDefault();
+      this._go(this._index + 1, 'tap');
+    }
+
+    _onKey(e) {
+      // Ignore when the user is typing.
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key;
+      let handled = true;
+
+      if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Spacebar') {
+        this._go(this._index + 1, 'keyboard');
+      } else if (key === 'ArrowLeft' || key === 'PageUp') {
+        this._go(this._index - 1, 'keyboard');
+      } else if (key === 'Home') {
+        this._go(0, 'keyboard');
+      } else if (key === 'End') {
+        this._go(this._slides.length - 1, 'keyboard');
+      } else if (key === 'r' || key === 'R') {
+        this._go(0, 'keyboard');
+      } else if (/^[0-9]$/.test(key)) {
+        // 1..9 jump to that slide; 0 jumps to 10.
+        const n = key === '0' ? 9 : parseInt(key, 10) - 1;
+        if (n < this._slides.length) this._go(n, 'keyboard');
+      } else {
+        handled = false;
+      }
+
+      if (handled) {
+        e.preventDefault();
+        this._flashOverlay();
+      }
+    }
+
+    _go(i, reason = 'api') {
+      if (!this._slides.length) return;
+      const clamped = Math.max(0, Math.min(this._slides.length - 1, i));
+      if (clamped === this._index) {
+        this._flashOverlay();
+        return;
+      }
+      this._index = clamped;
+      this._applyIndex({ showOverlay: true, broadcast: true, reason });
+    }
+
+    // Public API ------------------------------------------------------------
+
+    /** Current slide index (0-based). */
+    get index() { return this._index; }
+    /** Total slide count. */
+    get length() { return this._slides.length; }
+    /** Programmatically navigate. */
+    goTo(i) { this._go(i, 'api'); }
+    next() { this._go(this._index + 1, 'api'); }
+    prev() { this._go(this._index - 1, 'api'); }
+    reset() { this._go(0, 'api'); }
+  }
+
+  if (!customElements.get('deck-stage')) {
+    customElements.define('deck-stage', DeckStage);
+  }
+})();
+
+</script>
+<style>
+  :root{
+    --ink:#16150f;
+    --ink-2:#2a271f;
+    --ink-3:#55503f;
+    --ink-4:#8a836d;
+    --paper:#f6f3ea;
+    --paper-2:#efeadc;
+    --rule:#d9d3bf;
+    --rule-2:#c2bba2;
+    --utk:#ff8200;
+    --utk-ink:#58595b;
+    /* Claude cream */
+    --claude-bg:#faf9f5;
+    --claude-bg-2:#f5f1e8;
+    --claude-accent:#c96442;
+    --claude-ink:#3a2a1f;
+    /* OpenAI green */
+    --oa-bg:#f0fdf4;
+    --oa-bg-2:#dcfce7;
+    --oa-accent:#16a34a;
+    --oa-ink:#0f3a20;
+    /* Timeline lanes */
+    --lane-anth:#6b5b3a;
+    --lane-oa:#2f6a4a;
+    --lane-goog:#6a6a6a;
+  }
+  html,body{margin:0;padding:0;background:#000;}
+  deck-stage{font-family:"Source Serif 4", Georgia, serif;color:var(--ink);}
+  section{
+    background:var(--paper);
+    color:var(--ink);
+    padding:100px;
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  .sans{font-family:"Inter", -apple-system, sans-serif;}
+  .mono{font-family:"JetBrains Mono", ui-monospace, monospace;}
+
+  /* Common chrome */
+  .slide-head{
+    font-family:"Inter", sans-serif;
+    font-size:26px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--ink);
+    font-weight:700;
+  }
+  .slide-head .accent{color:var(--utk);font-weight:700;}
+  .slide-title{
+    font-family:"Source Serif 4", serif;
+    font-size:68px;
+    font-weight:500;
+    line-height:1.08;
+    letter-spacing:-0.015em;
+    color:var(--ink);
+    margin:0;
+  }
+  .footer{
+    position:absolute;
+    left:100px;
+    right:100px;
+    bottom:44px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-family:"Inter", sans-serif;
+    font-size:20px;
+    color:var(--ink-4);
+    letter-spacing:0.04em;
+  }
+
+  /* Take-home banner */
+  .takehome{
+    position:absolute;
+    left:100px;
+    right:100px;
+    bottom:88px;
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+    padding:18px 24px;
+    background:rgba(255,130,0,0.08);
+    border-left:4px solid var(--utk);
+    border-radius:2px;
+    font-family:"Inter", sans-serif;
+  }
+  .takehome .th-lbl{
+    font-size:13px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--utk);
+    font-weight:700;
+    white-space:nowrap;
+    padding-top:4px;
+  }
+  .takehome .th-txt{
+    font-family:"Source Serif 4", serif;
+    font-size:24px;
+    line-height:1.35;
+    color:var(--ink);
+    font-weight:500;
+    letter-spacing:-0.005em;
+  }
+  .takehome .th-theme{
+    display:inline-block;
+    margin-left:10px;
+    padding:2px 8px;
+    border-radius:999px;
+    font-family:"Inter", sans-serif;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    vertical-align:3px;
+  }
+  .takehome .th-theme.t1{background:#e8f0ff;color:#2a4a8c;}
+  .takehome .th-theme.t2{background:#eaf7ec;color:#1b5c2a;}
+  .takehome .th-theme.t3{background:#fdeedd;color:#a34a12;}
+  .section-divider .takehome{
+    background:rgba(255,130,0,0.12);
+    border-left-color:var(--utk);
+  }
+  .section-divider .takehome .th-txt{color:var(--paper);}
+  body.th-hidden .takehome{display:none;}
+  body.th-hidden .footer{bottom:44px;}
+  /* When take-home is visible, push footer to give room isn't needed — banner is above footer */
+  .footer .dot{width:6px;height:6px;border-radius:50%;background:var(--utk);display:inline-block;vertical-align:middle;margin:0 10px 3px;}
+
+  .rule{height:1px;background:var(--rule);width:100%;}
+  .rule-thick{height:3px;background:var(--ink);width:120px;}
+
+  /* Prompt composer — Claude cream */
+  .composer{
+    border-radius:18px;
+    padding:28px 32px 22px;
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    font-size:28px;
+    line-height:1.5;
+    color:var(--claude-ink);
+    background:var(--claude-bg);
+    border:1px solid var(--rule);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 24px 60px -30px rgba(56,40,20,0.25);
+    position:relative;
+    max-width:1280px;
+  }
+  .composer .src-tag{
+    position:absolute;
+    top:-14px; left:24px;
+    font-family:"Inter", sans-serif;
+    font-size:16px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    background:var(--paper);
+    color:var(--claude-accent);
+    padding:2px 10px;
+    border:1px solid var(--rule);
+    border-radius:999px;
+    font-weight:600;
+  }
+  .composer .send{
+    position:absolute;
+    right:18px; bottom:16px;
+    width:38px;height:38px;border-radius:50%;
+    background:var(--claude-accent);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;
+  }
+  .composer.openai{
+    background:var(--oa-bg);
+    color:var(--oa-ink);
+    border-color:#cde9d6;
+  }
+  .composer.openai .src-tag{color:var(--oa-accent);}
+  .composer.openai .send{background:var(--oa-accent);}
+  .composer .caret{
+    display:inline-block;width:10px;height:30px;background:var(--claude-accent);
+    vertical-align:-4px;margin-left:2px;
+    animation:blink 1.1s steps(2,end) infinite;
+  }
+  .composer.openai .caret{background:var(--oa-accent);}
+  @keyframes blink{ 50%{opacity:0;} }
+
+  .pill{
+    display:inline-block;
+    font-family:"Inter",sans-serif;
+    font-size:16px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-3);
+    border:1px solid var(--rule-2);
+    padding:4px 12px;
+    border-radius:999px;
+  }
+  .kicker{
+    font-family:"Inter",sans-serif;
+    font-size:24px;
+    color:var(--ink-3);
+    letter-spacing:0.02em;
+    font-weight:500;
+  }
+
+  .big-num{
+    font-family:"Source Serif 4", serif;
+    font-weight:500;
+    font-size:180px;
+    line-height:0.95;
+    letter-spacing:-0.04em;
+    color:var(--ink);
+  }
+
+  .utk-accent{color:var(--utk);}
+
+  /* Timeline */
+  .tl-wrap{
+    margin-top:30px;
+    background:#fbf8ef;
+    border:1px solid var(--rule);
+    border-radius:6px;
+    padding:28px 36px 20px;
+  }
+  .tl-row{
+    display:grid;
+    grid-template-columns: 140px 1fr;
+    align-items:center;
+    gap:20px;
+    height:86px;
+  }
+  .tl-label{
+    font-family:"Inter",sans-serif;
+    font-size:22px;
+    color:var(--ink-2);
+    font-weight:600;
+  }
+  .tl-label .sub{display:block;font-weight:400;color:var(--ink-4);font-size:16px;letter-spacing:0.04em;}
+  .tl-lane{
+    position:relative;
+    height:56px;
+    border-top:1px dashed var(--rule-2);
+    border-bottom:1px dashed var(--rule-2);
+  }
+  .tl-tick{
+    position:absolute;
+    top:50%;
+    transform:translate(-50%,-50%);
+    width:10px;height:10px;
+    border-radius:50%;
+    background:var(--lane-anth);
+  }
+  .tl-tick.major{width:16px;height:16px;border:2px solid var(--paper);box-shadow:0 0 0 1.5px currentColor;}
+  .tl-oa .tl-tick{background:var(--lane-oa);}
+  .tl-goog .tl-tick{background:var(--lane-goog);}
+  /* Categorized symbol ticks — we no longer use background color for the dot itself;
+     the SVG inherits currentColor from the lane. */
+  .tl-tick{ background:transparent !important; width:auto; height:auto; border-radius:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .tl-tick .tl-svg{ fill:currentColor; display:block; }
+  .tl-oa .tl-tick{ color:var(--lane-oa); }
+  .tl-goog .tl-tick{ color:var(--lane-goog); }
+  .tl-row:not(.tl-oa):not(.tl-goog) .tl-tick{ color:var(--lane-anth); }
+
+  /* Legend for slide 5 */
+  .tl-legend{ display:flex; gap:32px; align-items:center; margin-top:18px; font-family:"Inter",sans-serif; font-size:18px; color:var(--ink-3); letter-spacing:0.02em; }
+  .tl-legend .lg-item{ display:flex; align-items:center; gap:10px; }
+  .tl-legend .lg-sym{ display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center; color:var(--ink-2); }
+  .tl-legend .lg-sym svg{ fill:currentColor; }
+  .tl-legend .lg-label b{ color:var(--ink-2); font-weight:600; }
+
+  .tl-axis{
+    display:grid;
+    grid-template-columns: 140px 1fr;
+    gap:20px;
+    margin-top:8px;
+    font-family:"Inter",sans-serif;
+    font-size:16px;
+    color:var(--ink-4);
+    letter-spacing:0.04em;
+  }
+  .tl-axis .months{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    text-align:left;
+    border-top:1px solid var(--rule-2);
+    padding-top:6px;
+  }
+
+  /* Tables */
+  table.clean{border-collapse:collapse;font-family:"Inter",sans-serif;}
+  table.clean th, table.clean td{
+    text-align:left;
+    padding:18px 22px;
+    border-bottom:1px solid var(--rule);
+    vertical-align:top;
+    font-size:24px;
+    color:var(--ink-2);
+    line-height:1.35;
+  }
+  table.clean th{
+    font-size:16px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--ink-4);
+    font-weight:600;
+    border-bottom:2px solid var(--ink-3);
+  }
+  table.clean td.mode{
+    font-family:"Source Serif 4", serif;
+    font-size:28px;
+    font-weight:500;
+    color:var(--ink);
+    width:180px;
+  }
+
+  .cover-bg{
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 92% 90%, rgba(255,130,0,0.06), transparent 40%);
+  }
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start;}
+  .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px;align-items:start;}
+
+  .callout{
+    font-family:"Source Serif 4", serif;
+    font-size:44px;
+    line-height:1.25;
+    color:var(--ink);
+    font-weight:400;
+    letter-spacing:-0.005em;
+  }
+  .callout em{font-style:italic;color:var(--ink);}
+
+  .stat-block{
+    display:flex;align-items:baseline;gap:18px;
+  }
+
+  ul.dashes{list-style:none;padding:0;margin:0;}
+  ul.dashes li{
+    font-family:"Source Serif 4", serif;
+    font-size:28px;
+    line-height:1.45;
+    color:var(--ink-2);
+    padding:10px 0 10px 30px;
+    position:relative;
+  }
+  ul.dashes li::before{
+    content:"—";
+    position:absolute;left:0;top:10px;
+    color:var(--ink-4);
+  }
+
+  .arch{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:12px;
+    font-family:"Inter",sans-serif;
+  }
+  .arch .box{
+    border:1px solid var(--rule-2);
+    background:#fbf8ef;
+    padding:18px 20px;
+    font-size:22px;
+    color:var(--ink-2);
+  }
+  .arch .box .lbl{
+    display:block;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--ink-4);margin-bottom:6px;font-weight:600;
+  }
+  .arch .box.math{background:#faf6e4;}
+  .arch .box.glue{background:#f0ece0;}
+  .arch .box.ui{background:#fff1e2;}
+
+  /* Architecture list (clean replacement for colored grid) */
+  .arch-list{display:flex;flex-direction:column;gap:22px;}
+  .arch-group{
+    border-top:1px solid var(--rule);
+    padding-top:14px;
+  }
+  .arch-group:first-child{border-top:2px solid var(--ink);}
+  .arch-group-lbl{
+    font-family:"Inter",sans-serif;
+    font-size:16px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-2);
+    font-weight:600;
+    display:flex;align-items:center;gap:10px;
+    margin-bottom:6px;
+  }
+  .arch-group-lbl .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  .arch-group ul{list-style:none;padding:0;margin:0;}
+  .arch-group ul li{
+    font-family:"Source Serif 4",serif;
+    font-size:22px;
+    line-height:1.45;
+    color:var(--ink-2);
+    padding:4px 0 4px 0;
+  }
+
+  .quote-source{
+    font-family:"Inter",sans-serif;
+    font-size:18px;
+    color:var(--ink-4);
+    letter-spacing:0.03em;
+    margin-top:14px;
+  }
+
+  .stat-row{display:flex;gap:72px;align-items:flex-end;}
+  .stat-row .stat{display:flex;flex-direction:column;gap:4px;}
+  .stat-row .num{font-family:"Source Serif 4",serif;font-size:120px;line-height:0.9;font-weight:500;letter-spacing:-0.03em;color:var(--ink);}
+  .stat-row .cap{font-family:"Inter",sans-serif;font-size:22px;color:var(--ink-3);max-width:360px;line-height:1.3;}
+
+  .logo-watermark{
+    position:absolute;
+    bottom:56px; right:100px;
+    width:130px; opacity:0.85;
+  }
+
+  .score-col{
+    padding:36px 40px;
+    border:1px solid var(--rule);
+    background:#fbf8ef;
+    border-radius:4px;
+  }
+  .score-col h3{
+    font-family:"Source Serif 4",serif;
+    font-size:42px;
+    margin:0 0 6px 0;
+    letter-spacing:-0.01em;
+    font-weight:500;
+  }
+  .score-col .sign{font-family:"Source Serif 4",serif;font-size:36px;color:var(--ink-3);margin-right:10px;}
+  .score-col.plus{border-left:4px solid var(--ink);}
+  .score-col.minus{border-left:4px solid var(--utk);}
+  .score-col ul{list-style:none;padding:0;margin:18px 0 0;}
+  .score-col li{font-family:"Source Serif 4",serif;font-size:24px;line-height:1.45;color:var(--ink-2);margin:10px 0;padding-left:20px;position:relative;}
+  .score-col li::before{content:"•";position:absolute;left:0;color:var(--ink-4);}
+
+  .principle-row{
+    display:grid;grid-template-columns: 80px 1fr;gap:30px;
+    padding:22px 0;border-bottom:1px solid var(--rule);align-items:baseline;
+  }
+  .principle-row:last-child{border-bottom:none;}
+  .principle-row .n{font-family:"Source Serif 4",serif;font-size:36px;color:var(--ink-4);font-weight:500;}
+  .principle-row .t{font-family:"Source Serif 4",serif;font-size:36px;color:var(--ink);font-weight:500;line-height:1.25;}
+  .principle-row .d{font-family:"Inter",sans-serif;font-size:22px;color:var(--ink-3);margin-top:6px;}
+
+  /* Offload section */
+  .section-divider{
+    background:var(--ink);
+    color:var(--paper);
+  }
+  .section-divider .slide-head{color:var(--paper-2) !important;}
+  .section-divider .rule-thick{background:var(--utk);}
+  .section-divider .slide-title{color:var(--paper);}
+  .section-divider .kicker{color:rgba(246,243,234,0.72);}
+  .section-divider .footer{color:rgba(246,243,234,0.55);}
+
+  .offload-split{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:48px;
+    margin-top:32px;
+    flex:1;
+    align-items:stretch;
+  }
+  .offload-split.three{grid-template-columns: 1.05fr 0.95fr;}
+  .offload-split > .col{display:flex;flex-direction:column;gap:20px;min-width:0;}
+  .offload-img{
+    width:100%;
+    border:1px solid var(--rule);
+    background:#fff;
+    border-radius:6px;
+    display:block;
+    object-fit:contain;
+    box-shadow: 0 24px 60px -30px rgba(56,40,20,0.25);
+  }
+  .offload-caption{
+    font-family:"Inter",sans-serif;
+    font-size:18px;
+    color:var(--ink-4);
+    letter-spacing:0.03em;
+  }
+  .offload-lede{
+    font-family:"Source Serif 4",serif;
+    font-size:32px;
+    line-height:1.3;
+    color:var(--ink-2);
+    font-weight:400;
+    letter-spacing:-0.005em;
+  }
+  .offload-lede b{color:var(--ink);font-weight:600;}
+
+  /* Smaller composer variant for side-by-side */
+  .composer.small{
+    font-size:22px;
+    padding:22px 26px 18px;
+    border-radius:14px;
+    max-width:none;
+  }
+  .composer.small .src-tag{font-size:13px;padding:2px 9px;top:-12px;}
+  .composer.small .send{width:30px;height:30px;right:14px;bottom:12px;}
+  .composer.small .caret{height:22px;width:8px;vertical-align:-2px;}
+
+  /* Skills + commands explainer */
+  .skill-card{
+    background:#fbf8ef;
+    border:1px solid var(--rule);
+    border-radius:8px;
+    padding:28px 32px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .skill-card .lbl{
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    font-size:20px;
+    color:var(--utk);
+    letter-spacing:0.02em;
+  }
+  .skill-card h4{
+    font-family:"Source Serif 4", serif;
+    font-size:36px;
+    margin:0;
+    font-weight:500;
+    color:var(--ink);
+    letter-spacing:-0.01em;
+  }
+  .skill-card p{
+    font-family:"Inter", sans-serif;
+    font-size:21px;
+    line-height:1.45;
+    color:var(--ink-2);
+    margin:0;
+  }
+  .skill-card .eg{
+    margin-top:4px;
+    padding-top:14px;
+    border-top:1px dashed var(--rule-2);
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    font-size:18px;
+    color:var(--ink-3);
+    line-height:1.55;
+  }
+
+  /* File-tree mini */
+  .tree{
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    font-size:20px;
+    color:var(--ink-2);
+    background:#0f0e0b;
+    color:#d7d2c1;
+    border-radius:8px;
+    padding:22px 26px;
+    line-height:1.7;
+  }
+  .tree .dir{color:#ffb366;}
+  .tree .md{color:#a6d1ff;}
+  .tree .hl{color:#ffd27a;}
+  .tree .c{color:#6b6756;}
+</style>
+</head>
+<body>
+
+<script type="application/json" id="speaker-notes">
+[
+"Opening beat.\n• 40-min field report, not a sales pitch.\n• I'll share what I've seen in 2 years of practice, then leave you with a framework.\n• Empirical where I can. Flag where evidence is thin.",
+
+"Quick ID; most of you know me.\n• 4th-year PhD, UTK Math\n• Dissertation: Diffuse Domain Method, multigrid, PDE solvers\n• ORNL: Q-learning / DDQN for materials-science lattice optimization\n• Experienced GTA\n• The mix matters — talk draws on research + teaching + the recreational work between.",
+
+"Five stops, one question.\n• I. The question  · II. Three modes · III. The practice · IV. The register · V. The takeaway\n• Don't walk through — point at the arc.",
+
+"Act I divider.\n• Provocation + scorecard ahead. Move quickly.",
+
+"The setup.\n• If a PhD/postdoc self-describes as good at agentic / vibe / AI-assisted coding — plus or minus?\n• Two real colleague answers on screen: \"What is agentic coding?\" · \"It really depends.\"\n• Tools I'll glance at: Codex (web + CLI), Claude Code. Not a tutorial.\n• Pause 60s if the room wants to answer; else reveal.",
+
+"Both sides defensible.\n• +1 reading: catches the wave, ships what others can't, future-proofs the toolchain.\n• −1 reading: output looks like work but isn't; can't defend the claims; brittle when model shifts.\n• Punchline: the two CVs can be identical. The tell is underneath.\n• 4 diagnostic questions on the right — save them for later.\nHold the question. Don't answer yet.",
+
+"Why the ground matters.\n• 108 days · 3 labs · every dot = a release.\n• Don't enumerate. Point at the density.\n• Pick a workflow in January → by April you're 3 generations behind.\n• Even for an enthusiast it's overwhelming to catch up.",
+
+"Selected from ~30 launches.\n• 1M-token context · 14.5-hour tasks · computer-use · cross-device dispatch · parallel agents.\n• Don't read line by line. Just point at the spacing: weeks, not years.\n• Each release closed a gate that was real the week before.",
+
+"Act II divider.\n• Same person. Three contracts with the model.\n• Each decided by where the depth has to come from.",
+
+"The central frame.\n• Depth: narrow cone, still a PhD's job.\n• Breadth: weeks → hours.\n• If you buy this, many practice questions answer themselves.\n• Heuristic: use AI where you need breadth. Not where you need depth.",
+
+"Specific to applied math.\n• Fluent: MATLAB, Python/NumPy/PyTorch/mpi4py, LaTeX/TikZ, shell, enough C++.\n• Locked out: Fortran, Flask/FastAPI, React, async JS, deployment.\n• Left column: modest boost. Right column: almost a prerequisite.\n• The bigger change is the right column. That's what I'd emphasize.",
+
+"Mode A · Weekend project.\n• Goal: feel distillation end-to-end, not from a paper.\n• Small game (7 legal moves/turn). Strong-but-slow minimax + αβ expert.\n• Plan: generate games from expert → CNN student imitates move distribution.\n• Browser arena + dashboard are just so I can watch them play.",
+
+"Mode A · What AI bought me.\n• ~3,700 lines, 8 modules.\n• Math I own: engine, minimax/αβ, DQN, distillation.\n• Plumbing I'd have skipped: Flask API, browser dashboard, AI-vs-AI arena.\n• The outer ring used to be my ceiling on weekend projects. Now I build through it without giving up the math.",
+
+"Mode B · Teaching — depth is mine, AI compresses distribution.\n• Offload: tidying notes, writing tutorials/HW/demos, LaTeX wrangling.\n• Why it works: chores + code-adjacent + automate-friendly in 2026.\n• NON-NEGOTIABLE professional line:\n   — Student work NEVER goes near an LLM.\n   — No uploads of quizzes / exams / HW / rosters.\n   — No agent computer-use over identifiable student work.\n   — I automate MY artifacts, not theirs.",
+
+"Mode C · Research — most disciplined posture.\n• Work: multigrid, BSAM, diffuse-interface PDEs, Q-learning/DDQN for lattices, MPI parallelization.\n• Stat: 151 verification prompts / 1,632 total · ~1 in 10.\n• 38 prompts cite the advisor's spec as ground truth.\n• AI is fast-prototyper AND verifier. Never the author of mathematics.",
+
+"Mode C · Fast prototyping — the concrete loop.\n• Describe PDE → scheme → output format → ask for one script.\n• Run → read the plot → teach where it's wrong. Don't re-ask from scratch.\n• First working prototype: one lunch, not one weekend.\n• I own the algorithm. AI owns the transcription.\n• Same pattern across claude.ai, Codex, Gemini (the Gemini ODE solver is the running example ahead).",
+
+"Three modes, side by side.\n• Fun → co-builder (math from me, engineering vocabulary from AI).\n• Teaching → pipeline compiler (pedagogy mine, distribution automated).\n• Research → fast-prototyper + verifier (math mine, AI transcribes + audits).\n• If a candidate can't name their posture — that's the warning sign.\n• Second-order effect: teaching hours come back to research (or to life).",
+
+"Act III divider · Things I hand over completely.\n• When output isn't load-bearing on my math, agents own the whole thing.\n• Three examples, one pattern.",
+
+"Offload · TikZ figures.\n• Prompt is a SPEC, not an algorithm.\n• Verbatim example on screen: MATH 142 integral-test figure.\n• Tip: give as much detail as you can; you're drawing in natural language.\n• Haven't opened the pgfplots manual in a year.\n• Note: spec said f(x)=5xe^(-0.4x); render is 1+5xe^(-0.4x) — model absorbed the vertical shift without re-prompting.",
+
+"Offload · Tutorial problems from a napkin sketch.\n• Multimodality doing real work.\n• Photo of hotel notepad (volume of a frustum) → 3-part tutorial Q with solutions.\n• Don't re-type the derivation; the model reads the handwriting.\n• Copy-paste-ready LaTeX in my instructor's style. ~10 min start-to-finish.",
+
+"Offload · Short the loop.\n• Install a local LaTeX compiler → agent writes .tex → compiles → you read the PDF.\n• Iterate on the PDF, not the raw text. No copy-paste between chat and editor.\n• Tip: ask the agent to convert PDF → PNG and read the image back — it can self-correct layout.",
+
+"Offload · Infrastructure beats one-shots.\n• `.claude/agents/tutorial-generator.md` (Opus) — reads lecture PDFs, matches instructor notation, writes in his voice.\n• `.claude/commands/generate-tutorial.md` (Sonnet) — one-line entry point with a week argument.\n• Under the hood: catalog demos to avoid duplicates → 40/40/20 difficulty split → tikz-grapher subagent → numerics verified in Python → layout-proofreader.\n• Command is muscle memory; agent holds the craft. One command per week.",
+
+"Aside · Quick vocabulary.\n• Subagent — specialist you delegate to, own prompt/tools/model (\"spawn a proofreader\").\n• Slash command — named shortcut to a long prompt, with args. Lives in the repo. Macros in English.\n• Skill — packaged capability the assistant loads on demand.\n• META-MOVE: you don't write these from scratch. You ask the agent to write the agent. Agents all the way down.",
+
+"Offload · Style match, not just content match.\n• Instructor uses \"pattern matching\" — even jokes about it (plastic surgery).\n• Agent-generated Week-2 solution opens with the same two words.\n• Agent read the lecture PDFs before writing — picked up voice, not just content.\n• The real win isn't speed. It's that students get a worksheet that sounds like their lecturer.",
+
+"Offload · Claude Design — this deck is the demo.\n• Not Beamer. Built inside Claude Design.\n• Same project workspace as the tutorial-generator agent.\n• Type, layout, frustum figure, chat mocks, cover photo — one living HTML/CSS file.\n• Design mode (new this year) treats slides/posters/prototypes as first-class.\n• Default aesthetic already beats what I got out of LaTeX.\n• The moral: offloading isn't just about code. \"Make a figure / slide / handout\" went from days to minutes.",
+
+"Utilities · When you hit a wall, build the tool.\n• Ran out of Claude Design usage mid-deck.\n• Bootstrap prompt on screen — ran through Claude Code CLI instead.\n• Local clone of the Design slot-based slide engine, one-file output.\n• Point isn't the clone. The cost of \"I'll just build my own\" collapsed from a weekend to an afternoon.\n• Meta: the deck is being reviewed IN this clone right now.",
+
+"Utilities · The other mode — long-lived builds.\n• AI grader: PaddleOCR-VL + LLM head. Replaces Gradescope for my sections.\n• Longer spec, test harness, versioned agents.\n• Depth boundary: rubric is mine; OCR / page parsing is automated.\n• On-device: student work never leaves my machine (ties back to the Mode B professional line).",
+
+"Act IV divider · How I prompt.\n• Three moves, one turn.\n• Context first → invariants with reasons → brainstorm before code.\n• The voice: advisor to grad student.",
+
+"Move 1 · Frame the problem, high-level.\n• Whole problem stated in one page before any code.\n• Domain, PDEs each side, continuity, transmission, boundary.\n• Advisor writes the statement; the scheme comes on the next slide.\n• Example: two-sided ODE solver with transmission condition (Gemini, verbatim).",
+
+"Move 2 · Hand over the low-level details.\n• Pin geometry first: even N, mesh h=2/N, cell-centered grid.\n• N+2 unknowns — the model can't infer the double-count at the interface.\n• Concrete example (N=8) + visual kills ambiguity.\n• Give the trick: averaging across ghosts realizes u_L(0)=u_R(0).\n• Give the transmission row explicitly — don't let the model guess.",
+
+"Move 3 · Audit against a physical invariant, not the compiler.\n• Gemini's first plot compiled and rendered — looked fine.\n• But −u_L''=0 + Neumann at x=-1 forces a constant on Ω_L. The red line slopes.\n• The physics IS the test. Unit tests wouldn't have caught this.\n• \"I could have run unit tests. The physics is the test.\"",
+
+"Teach the model the derivation — don't re-ask the question.\n• Gemini deferred to a (3,−1) stencil from my note. Actually a Dirichlet coefficient, not Neumann.\n• I walked through ghost cell + substitution → u_1 − u_2 = 0.\n• Then asked: mirror the derivation at x=1.\n• Result: model generalizes the METHOD, not the patch.",
+
+"The silent bug is the important one.\n• Symptom: L2 slope NaN. Same solution for every α.\n• Cause: λ recomputed each iteration to match the manufactured solution → hides the α perturbation we were studying.\n• One line. Zero error messages.\n• Finding it requires knowing what the study is FOR.",
+
+"Don't let the model launder the physics.\n• Gemini edited the reference solution so the convergence test \"passes\".\n• That's not a test — that's a lie.\n• Advisor move: reject the hack. Keep the spec.\n• The convergence study only means something if α is the only thing moving.",
+
+"Rigor practices — load-bearing stats.\n• 151 verification prompts across 1,632 total · ~1 in 10.\n• Most load-bearing sentence in the whole corpus: \"Before you give me the code, please try to explain.\"\n• The advisor–student contract, compressed into one sentence.\n• Triangulate across models. No single oracle.\n• Push back on over-engineering. Correctness ≠ acceptability.\n• Tip: modern CLI agents call each other — e.g. Codex ships a Skill for Claude Code.",
+
+"Meta-patterns — four postures underneath everything.\n• I own the algorithm. AI owns the transcription.\n• Concrete hooks beat abstract descriptions. (\"Rank 2 finished early\" > \"debug this.\")\n• Infrastructure beats re-prompting. CLAUDE.md, subagents, slash commands.\n• Triangulate. One model reviews another; a third adjudicates.\n• Screen example: MPI deadlock cross-examination, Claude ↔ ChatGPT/Codex.",
+
+"Four operating principles — the whole methodology in four lines.\n1. Math is the ground truth. (paper · advisor's code · derivation — not the model's answer.)\n2. AI is peer review, not an oracle. You can push back. You should.\n3. Concrete beats abstract. Point at the symptom.\n4. Infrastructure beats repetition. If you type the same instructions twice, put them in a file.\nIf nothing else sticks, these do.",
+
+"Back to the opening question — reframe, not verdict.\n• Not: \"does agentic coding add or subtract points?\"\n• Better: did they use AI as shortcut, or as amplifier of existing depth?\n• Test: do they still OWN their mathematics?",
+
+"Act V divider · One test. Not a verdict.\n• What I look for when the CVs all look the same.",
+
+"One sentence — the takeaway.\n• AI collapsed the cost of breadth.\n• Depth is still a PhD's job.\n• Use the first to make the second go further.\n• Office-door material, if I had one.",
+
+"Close + Q&A.\n• Happy to take questions.\n• Contact: mwong4 at vols.utk.edu.\n• Genuinely welcome counter-examples — domains where this framing doesn't hold up."
+]
+</script>
+
+<deck-stage width="1920" height="1080">
+
+<!-- 1 Cover -->
+<section data-label="Cover" class="cover-bg" style="padding:120px 140px;justify-content:space-between;">
+  <div>
+    <div class="sans" style="font-size:22px;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-3);font-weight:500;">UTK Mathematics · Professional Development Lunches (PDLs)</div>
+    <div style="height:2px;background:var(--ink);width:96px;margin:28px 0 48px;"></div>
+  </div>
+  <div>
+    <h1 style="font-family:'Source Serif 4',serif;font-size:128px;line-height:1.02;letter-spacing:-0.025em;font-weight:500;margin:0;max-width:1500px;">
+      How do I, as a scientist,<br>
+      learn and adapt to<br>
+      <span style="font-style:italic;color:var(--ink-2);">agentic coding</span>.
+    </h1>
+    <div style="margin-top:48px;font-family:'Inter',sans-serif;font-size:28px;color:var(--ink-3);letter-spacing:0.01em;">
+      A field report on AI in research, teaching, and everything adjacent.
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div class="sans" style="font-size:24px;color:var(--ink-2);line-height:1.45;">
+      <div style="font-weight:600;font-size:30px;color:var(--ink);">Calvin (Ming Hei) Wong</div>
+      <div>PhD Candidate, Computational &amp; Applied Mathematics</div>
+      <div style="color:var(--ink-4);margin-top:4px;">Wednesday, April 22 &middot; 4:00 PM &middot; Ayres Hall 123</div>
+    </div>
+    <img src="assets/utk-logo.png" alt="UTK" style="height:340px;opacity:0.9;">
+  </div>
+</section>
+
+<!-- 2 About me -->
+<section>
+  <div class="slide-head">About me</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="two-col" style="margin-top:60px;gap:100px;align-items:center;flex:1;">
+    <div>
+      <img src="assets/portrait.png" alt="portrait" style="width:460px;height:460px;object-fit:cover;border-radius:6px;filter:grayscale(15%);">
+    </div>
+    <div>
+      <h2 class="slide-title" style="font-size:56px;">Calvin (Ming Hei) Wong</h2>
+      <div class="kicker" style="margin-top:8px;">Fourth-year PhD candidate, UTK Mathematics</div>
+      <ul class="dashes" style="margin-top:36px;">
+        <li>Dissertation: Diffuse Domain Method, Multigrid Methods, PDE modelling and numerical solvers</li>
+        <li>Combinatorial optimization via Q-learning &amp; DDQN (ORNL, materials science)</li>
+        <li>Experienced Graduate Teaching Associate, undergraduate mathematics</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>02 · Cover to Q&amp;A</span><span>UTK Mathematics <span class="dot"></span> April 2026</span></div>
+</section>
+
+<!-- Table of contents -->
+<section>
+  <div class="slide-head">Today's path</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:36px 72px;flex:1;align-items:start;">
+    <div style="display:flex;gap:24px;align-items:baseline;">
+      <div class="sans" style="font-size:32px;color:var(--ink-3);font-weight:600;min-width:60px;">I</div>
+      <div>
+        <div style="font-family:'Source Serif 4',serif;font-size:38px;line-height:1.2;color:var(--ink);">The question</div>
+        <div class="kicker" style="margin-top:4px;font-size:20px;">Why I keep asking colleagues about agentic coding.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;align-items:baseline;">
+      <div class="sans" style="font-size:32px;color:var(--ink-3);font-weight:600;min-width:60px;">II</div>
+      <div>
+        <div style="font-family:'Source Serif 4',serif;font-size:38px;line-height:1.2;color:var(--ink);">Three modes</div>
+        <div class="kicker" style="margin-top:4px;font-size:20px;">Fun, teaching, research &mdash; how AI fits each differently.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;align-items:baseline;">
+      <div class="sans" style="font-size:32px;color:var(--ink-3);font-weight:600;min-width:60px;">III</div>
+      <div>
+        <div style="font-family:'Source Serif 4',serif;font-size:38px;line-height:1.2;color:var(--ink);">The practice</div>
+        <div class="kicker" style="margin-top:4px;font-size:20px;">Offloads, utilities, and the agents that run them.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;align-items:baseline;">
+      <div class="sans" style="font-size:32px;color:var(--ink-3);font-weight:600;min-width:60px;">IV</div>
+      <div>
+        <div style="font-family:'Source Serif 4',serif;font-size:38px;line-height:1.2;color:var(--ink);">The register</div>
+        <div class="kicker" style="margin-top:4px;font-size:20px;">How I prompt &mdash; and how I audit what comes back.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;align-items:baseline;">
+      <div class="sans" style="font-size:32px;color:var(--ink-3);font-weight:600;min-width:60px;">V</div>
+      <div>
+        <div style="font-family:'Source Serif 4',serif;font-size:38px;line-height:1.2;color:var(--ink);">The takeaway</div>
+        <div class="kicker" style="margin-top:4px;font-size:20px;">One test I use to score a candidate &mdash; or myself.</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>03 · Today's path</span><span>Five stops, one question</span></div>
+</section>
+
+<!-- Part I section divider -->
+<section class="section-divider" style="justify-content:center;">
+  <div>
+    <div class="slide-head">Part I &middot; The question</div>
+    <div class="rule-thick" style="margin-top:20px;"></div>
+    <h2 class="slide-title" style="margin-top:44px;color:var(--paper);font-size:112px;max-width:1500px;">
+      What counts as good <span style="font-style:italic;color:var(--utk);">agentic coding</span>?
+    </h2>
+    <div class="kicker" style="margin-top:36px;max-width:1100px;font-size:28px;">
+      A provocation I keep asking my colleagues &mdash; and a scorecard for the two stereotypes
+      that answer it.
+    </div>
+  </div>
+  <div class="footer"><span>04 · Part I</span><span>The question</span></div>
+</section>
+
+<!-- 3 Provocation -->
+<section style="justify-content:flex-start;align-items:flex-start;padding-top:120px;">
+  <div class="pill" style="font-size:22px;font-weight:600;color:var(--ink);letter-spacing:0.1em;padding:6px 16px;border-color:var(--ink-4);">A question I keep asking my colleagues</div>
+  <div class="callout" style="margin-top:46px;font-size:56px;line-height:1.2;max-width:1600px;">
+    If a PhD or postdoc candidate described themselves as good at
+    <em>&ldquo;agentic coding,&rdquo;</em> <em>&ldquo;vibe coding,&rdquo;</em> or <em>&ldquo;AI-assisted coding&rdquo;</em> &mdash;
+    <br><br>
+    would that count <span style="text-decoration:underline;text-decoration-color:var(--utk);text-underline-offset:10px;">in their favor</span>,
+    or <span style="text-decoration:underline;text-decoration-color:var(--utk);text-underline-offset:10px;">against them</span>?
+  </div>
+
+  <div class="reveal-countdown" style="margin-top:56px;display:flex;align-items:center;justify-content:center;gap:18px;color:var(--ink-3);font-family:Inter,sans-serif;width:100%;">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>
+      <circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-dasharray="56.5" stroke-dashoffset="0" class="cd-ring"
+              style="transform-origin:center;transform:rotate(-90deg);transition:stroke-dashoffset 250ms linear;"/>
+    </svg>
+    <div style="font-size:18px;letter-spacing:0.06em;">
+      <span class="cd-label" style="text-transform:uppercase;font-weight:600;">Pause &middot; two real answers coming in</span>
+      <span class="cd-sep" style="margin:0 8px;opacity:0.5;">&middot;</span>
+      <span class="cd-seconds" style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink);">60s</span>
+    </div>
+    <button class="cd-reveal" type="button"
+            style="appearance:none;font-family:Inter,sans-serif;font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#fff;background:var(--ink);border:1px solid var(--ink);padding:8px 16px;border-radius:999px;cursor:pointer;margin-left:8px;">
+      Reveal now
+    </button>
+  </div>
+
+  <div class="professor-answers" style="margin-top:40px;display:flex;flex-direction:column;gap:28px;max-width:1600px;width:100%;opacity:0;transform:translateY(12px);transition:opacity 700ms ease, transform 700ms cubic-bezier(.2,.8,.2,1);">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;">
+      <div style="padding:26px 30px;background:#fbf8ef;border-left:4px solid var(--ink);">
+        <div class="sans" style="font-size:14px;color:var(--ink-3);letter-spacing:0.14em;text-transform:uppercase;font-weight:600;">Professor 1</div>
+        <div style="font-family:'Source Serif 4',serif;font-size:34px;line-height:1.25;margin-top:6px;color:var(--ink);font-style:italic;">
+          &ldquo;What is agentic coding?&rdquo;
+        </div>
+      </div>
+      <div style="padding:26px 30px;background:#fbf8ef;border-left:4px solid var(--utk);">
+        <div class="sans" style="font-size:14px;color:var(--ink-3);letter-spacing:0.14em;text-transform:uppercase;font-weight:600;">Professor 2</div>
+        <div style="font-family:'Source Serif 4',serif;font-size:34px;line-height:1.25;margin-top:6px;color:var(--ink);font-style:italic;">
+          &ldquo;It really depends.&rdquo;
+        </div>
+      </div>
+    </div>
+    <div style="padding:22px 30px;background:var(--paper-2);border:1px solid var(--rule);border-radius:4px;">
+      <div class="sans" style="font-size:14px;color:var(--ink-3);letter-spacing:0.14em;text-transform:uppercase;font-weight:600;">Tools I&rsquo;ll glance at &middot; <span style="color:var(--utk);">not a tutorial</span></div>
+      <div style="display:flex;gap:28px;margin-top:12px;flex-wrap:wrap;font-family:'Source Serif 4',serif;font-size:24px;color:var(--ink);line-height:1.3;">
+        <span>&mdash; OpenAI Codex (web)</span>
+        <span>&mdash; OpenAI Codex CLI</span>
+        <span>&mdash; Claude Code (Anthropic CLI)</span>
+      </div>
+      <div class="kicker" style="margin-top:10px;font-size:18px;color:var(--ink-3);">
+        We&rsquo;ll take a quick look at my setup. We won&rsquo;t go deep on how to drive the software.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer"><span>05 · The provocation</span><span>Two real answers. Helpful at all?</span></div>
+  <script>
+  // Delay-in the two professor answers 60 seconds after this slide becomes
+  // active, with a live countdown visible while the timer runs. Hide on leave
+  // so re-entering restarts the dramatic pause.
+  (function () {
+    const section = document.currentScript.closest("section");
+    const answers = section.querySelector(".professor-answers");
+    const cd = section.querySelector(".reveal-countdown");
+    const cdSeconds = section.querySelector(".cd-seconds");
+    const cdLabel = section.querySelector(".cd-label");
+    const cdRing = section.querySelector(".cd-ring");
+    const RING_LEN = 56.5; // 2π * r  with r=9
+    const stage = document.querySelector("deck-stage");
+    if (!stage || !answers) return;
+    const REVEAL_MS = 60000;
+    let tickTimer = null;
+    let revealTimer = null;
+    let deadline = 0;
+
+    function setRing(fracRemaining) {
+      if (!cdRing) return;
+      cdRing.style.strokeDashoffset = (RING_LEN * (1 - fracRemaining)).toFixed(1);
+    }
+    function updateCountdown() {
+      const remainMs = Math.max(0, deadline - Date.now());
+      const secs = Math.ceil(remainMs / 1000);
+      if (cdSeconds) cdSeconds.textContent = secs + "s";
+      setRing(remainMs / REVEAL_MS);
+    }
+    function hide() {
+      answers.style.opacity = "0";
+      answers.style.transform = "translateY(12px)";
+      if (cd) cd.style.display = "flex";
+      if (cdLabel) cdLabel.textContent = "Pause · two real answers coming in";
+    }
+    function show() {
+      answers.style.opacity = "1";
+      answers.style.transform = "translateY(0)";
+      if (cd) cd.style.display = "none";
+    }
+    function startTimers() {
+      deadline = Date.now() + REVEAL_MS;
+      updateCountdown();
+      if (tickTimer) clearInterval(tickTimer);
+      tickTimer = setInterval(updateCountdown, 250);
+      if (revealTimer) clearTimeout(revealTimer);
+      revealTimer = setTimeout(() => {
+        if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+        show();
+      }, REVEAL_MS);
+    }
+    function stopTimers() {
+      if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+      if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+    }
+    stage.addEventListener("slidechange", (e) => {
+      stopTimers();
+      if (e.detail.slide === section) {
+        if (window.__revealAll) { show(); return; }
+        hide();
+        startTimers();
+      } else {
+        hide();
+      }
+    });
+    // Hotkey: press "V" on slide 3 to reveal immediately (useful for rehearsal).
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "v" && e.key !== "V") return;
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (!section.hasAttribute("data-deck-active")) return;
+      stopTimers();
+      show();
+    });
+    // Reveal button (visible, clickable) — same action as the V hotkey.
+    const revealBtn = section.querySelector(".cd-reveal");
+    if (revealBtn) {
+      revealBtn.addEventListener("click", () => { stopTimers(); show(); });
+    }
+  })();
+  </script>
+</section>
+
+<!-- 4 Candidate scorecard -->
+<section>
+  <div class="slide-head">Both stereotypes are real</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="two-col" style="margin-top:60px;gap:60px;">
+    <div class="score-col plus">
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <span class="sign">+1</span>
+        <h3>They're catching the wave.</h3>
+      </div>
+      <div class="kicker" style="font-size:22px;margin-top:4px;">The optimistic reading</div>
+      <ul style="font-size:28px;line-height:1.45;">
+        <li>Ships things the rest of us cannot.</li>
+        <li>Maximizes time on the hard part.</li>
+        <li>Future-proofs the group's toolchain.</li>
+        <li>Crosses stacks we were locked out of.</li>
+      </ul>
+    </div>
+    <div class="score-col minus">
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <span class="sign">&minus;1</span>
+        <h3>They've outsourced the thinking.</h3>
+      </div>
+      <div class="kicker" style="font-size:22px;margin-top:4px;">The skeptical reading</div>
+      <ul style="font-size:28px;line-height:1.45;">
+        <li>Output that looks like work but isn't.</li>
+        <li>Cannot defend what the code claims.</li>
+        <li>No taste, only autocomplete.</li>
+        <li>Brittle when the model changes.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="margin-top:70px;padding:32px 36px;border:1px solid var(--rule);border-radius:10px;background:#fbf8ef;">
+    <div class="sans" style="font-size:18px;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">The tell, underneath the output</div>
+    <div class="two-col" style="gap:60px;">
+      <ul class="dashes" style="font-size:24px;line-height:1.4;color:var(--ink-2);">
+        <li>Can they <b>defend every non-trivial claim</b> in the code?</li>
+        <li>Do they know where <b>the model hallucinated</b> and why?</li>
+      </ul>
+      <ul class="dashes" style="font-size:24px;line-height:1.4;color:var(--ink-2);">
+        <li>What happens when the <b>toolchain shifts</b> next quarter?</li>
+        <li>Is the judgment <b>portable</b> to a new stack without the model?</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer"><span>06 · The scorecard</span><span>Hold the question.</span></div>
+</section>
+
+<!-- 5 108 days timeline -->
+<section>
+  <div class="slide-head">The landscape is moving fast</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:24px;font-size:60px;">108 days. Three companies. Every dot is a release.</h2>
+  <div class="tl-wrap" style="flex:1;margin-top:30px;">
+    <div class="tl-row">
+      <div class="tl-label">Anthropic<span class="sub">Claude family</span></div>
+      <div class="tl-lane" style="color:var(--lane-anth);" id="lane-anth"></div>
+    </div>
+    <div class="tl-row tl-oa">
+      <div class="tl-label">OpenAI<span class="sub">GPT / Codex</span></div>
+      <div class="tl-lane" style="color:var(--lane-oa);" id="lane-oa"></div>
+    </div>
+    <div class="tl-row tl-goog">
+      <div class="tl-label">Google<span class="sub">Gemini / Gemma</span></div>
+      <div class="tl-lane" style="color:var(--lane-goog);" id="lane-goog"></div>
+    </div>
+    <div class="tl-axis">
+      <div></div>
+      <div class="months">
+        <div>Jan 2026</div><div>Feb</div><div>Mar</div><div>Apr 18</div>
+      </div>
+    </div>
+  </div>
+  <div class="tl-legend">
+    <div class="lg-item" data-legend="model"><span class="lg-sym"></span><span class="lg-label"><b>Model</b> — new foundation model</span></div>
+    <div class="lg-item" data-legend="app"><span class="lg-sym"></span><span class="lg-label"><b>Application</b> — consumer/prosumer surface</span></div>
+    <div class="lg-item" data-legend="feature"><span class="lg-sym"></span><span class="lg-label"><b>Feature</b> — tool, plugin, capability</span></div>
+  </div>
+
+  <div class="kicker" style="margin-top:32px;font-size:26px;font-weight:700;color:var(--ink);">
+    Even for AI-enthusiasts, like me, it is still quite overwhelming to catch up &mdash; and this is only three labs.
+  </div>
+  <div class="footer"><span>07 · The landscape</span><span>Jan 1 → Apr 18, 2026</span></div>
+</section>
+
+<!-- 6 Seven releases that mattered -->
+<section>
+  <div class="slide-head">Seven that actually changed what's possible in a weekend</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:24px 60px;flex:1;">
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Jan 12</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">Claude Cowork — general-purpose desktop agent.</div>
+    </div>
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Feb 5</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">Claude Opus 4.6 — 1M-token context, 14.5-hour tasks.</div>
+    </div>
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Feb 26</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">Nano Banana 2 — default image generator across Google, ~50% cheaper.</div>
+    </div>
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Mar 5</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">GPT-5.4 — 1M context in API, tool-search reasoning.</div>
+    </div>
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Mar 17</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">Claude Dispatch — text a task from phone, finish on desktop.</div>
+    </div>
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Mar 23</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">Computer Use in Cowork &amp; Claude Code — mouse, browser, keyboard.</div>
+    </div>
+    <div>
+      <div class="sans" style="font-size:22px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Apr 16–17</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;margin-top:4px;line-height:1.15;">Opus 4.7 &amp; Codex desktop overhaul — parallel agents, <span class="mono" style="font-size:32px;">xhigh</span> effort.</div>
+    </div>
+    <div style="background:#fbf8ef;border:1px solid var(--rule);padding:24px 28px;align-self:end;">
+      <div class="kicker" style="font-size:22px;">Each one opened up something that felt out of reach the week before. The spacing is weeks, not years.</div>
+    </div>
+  </div>
+  <div class="footer"><span>08 · Seven releases</span><span>Selected from ~30 significant launches</span></div>
+</section>
+
+<!-- Part II section divider -->
+<section class="section-divider" style="justify-content:center;">
+  <div>
+    <div class="slide-head">Part II &middot; Three modes</div>
+    <div class="rule-thick" style="margin-top:20px;"></div>
+    <h2 class="slide-title" style="margin-top:44px;color:var(--paper);font-size:112px;max-width:1500px;">
+      <span style="font-style:italic;color:var(--utk);">Fun, teaching, research</span> &mdash; three postures.
+    </h2>
+    <div class="kicker" style="margin-top:36px;max-width:1100px;font-size:28px;">
+      Same person. Three very different contracts between me and the model &mdash;
+      each decided by where the <i>depth</i> has to come from.
+    </div>
+  </div>
+  <div class="footer"><span>09 · Part II</span><span>Three modes</span></div>
+</section>
+
+<!-- 8 Breadth vs Depth framing -->
+<section>
+  <div class="slide-head">The framing</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:24px;max-width:1500px;">
+    AI collapses the cost of <span style="font-style:italic;">breadth</span>.
+    <br>Depth stays hard.
+  </h2>
+  <div class="two-col" style="margin-top:64px;gap:80px;flex:1;">
+    <div style="text-align:center;">
+      <div class="pill" style="display:inline-block;">Depth</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;font-weight:600;line-height:1.35;margin-top:28px;color:var(--ink);">
+        The narrow cone where you can out-argue anyone, run a proof nobody else has run, debug the problem blocking your field.
+      </div>
+      <div class="kicker" style="margin-top:26px;">Expensive. Narrow. Non-transferable. Still a PhD's job&hellip;&hellip; for now?</div>
+    </div>
+    <div style="text-align:center;">
+      <div class="pill" style="display:inline-block;">Breadth</div>
+      <div style="font-family:'Source Serif 4',serif;font-size:38px;font-weight:600;line-height:1.35;margin-top:28px;color:var(--ink);">
+        The adjacent things you understand well enough to connect ideas, ask the right questions, not be gatekept when you step outside your cone.
+      </div>
+      <div class="kicker" style="margin-top:26px;">Used to cost weeks per domain. For a lot of things, it now costs hours.</div>
+    </div>
+  </div>
+  <div class="footer"><span>10 · Breadth vs. depth</span><span>The central claim</span></div>
+</section>
+
+<!-- 9 Asymmetry -->
+<section>
+  <div class="slide-head">The applied mathematician's asymmetry</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:56px;max-width:1600px;">
+    AI speeds up what I already know, and — more interestingly — opens up stacks I probably was never going to learn in a math PhD.
+  </h2>
+  <div class="two-col" style="margin-top:54px;gap:60px;flex:1;">
+    <div style="background:#fbf8ef;border:1px solid var(--rule);padding:32px 36px;">
+      <div class="sans" style="font-size:20px;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Fluent — years of it</div>
+      <ul class="dashes" style="margin-top:14px;">
+        <li>MATLAB</li>
+        <li>Python + NumPy / PyTorch / mpi4py</li>
+        <li>LaTeX, TikZ</li>
+        <li>Shell scripting for HPC</li>
+        <li>Enough C++ to debug legacy code</li>
+      </ul>
+      <div class="kicker" style="font-size:22px;margin-top:22px;">AI here is a modest speed-up on things I could already do.</div>
+    </div>
+    <div style="background:#fff3e3;border:1px solid #ecd9b9;padding:32px 36px;">
+      <div class="sans" style="font-size:20px;color:var(--utk);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Previously locked out</div>
+      <ul class="dashes" style="margin-top:14px;">
+        <li>Fortran</li>
+        <li>Flask, FastAPI, REST APIs</li>
+        <li>React, HTML, CSS layout</li>
+        <li>Async JavaScript, browser state</li>
+        <li>Service architecture, deployment</li>
+      </ul>
+      <div class="kicker" style="font-size:22px;margin-top:22px;color:var(--ink-2);">AI here is closer to a prerequisite.<br>Without it, I would probably skip these columns entirely.</div>
+    </div>
+  </div>
+  <div class="footer"><span>11 · Asymmetry</span><span>The bigger change is the right column</span></div>
+</section>
+
+<!-- 10 Mode A Fun -->
+<section>
+  <div class="slide-head">Mode A — Fun projects</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:56px;">Connect 4 DQN Arena.</h2>
+
+  <div style="margin-top:24px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:52px;flex:1;min-height:0;align-items:stretch;">
+    <div style="display:flex;flex-direction:column;min-width:0;">
+      <div class="kicker" style="font-size:24px;line-height:1.35;">A weekend project to actually <i>feel</i> distillation &mdash; copy a slow, strong expert into a tiny CNN.</div>
+      <div class="sans" style="font-size:20px;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;margin-top:22px;margin-bottom:12px;">Why this game, why this plan</div>
+      <ul class="dashes" style="margin:0;">
+        <li><b>Goal.</b> Learn knowledge distillation end-to-end, not from another paper.</li>
+        <li><b>Small enough.</b> Connect 4 has only <b>7</b> legal moves per turn &mdash; the state fits in a tiny CNN.</li>
+        <li><b>Strong but slow expert.</b> Minimax + &alpha;&ndash;&beta; is textbook and very strong, but it is a DFS &mdash; search time blows up with depth.</li>
+        <li><b>Plan.</b> Generate games from the minimax expert, then train a CNN student to imitate its move distribution.</li>
+      </ul>
+      <div class="callout" style="margin-top:auto;font-size:22px;line-height:1.4;color:var(--ink-2);">
+        The math is the point. The browser arena and the live dashboard are just so I can <i>watch</i> the student play its teacher.
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0;min-height:0;">
+      <div style="flex:1 1 0;display:flex;flex-direction:column;min-height:0;">
+        <div class="offload-caption" style="font-size:14px;margin-bottom:4px;color:var(--ink-3);">Student vs. teacher, live</div>
+        <div style="flex:1;min-height:0;background:#000;border:1px solid var(--rule);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          <video src="assets/GamePlay.mp4" autoplay loop muted playsinline controls preload="metadata" style="width:100%;height:100%;object-fit:contain;"></video>
+        </div>
+      </div>
+      <div style="flex:0 0 auto;display:flex;flex-direction:column;">
+        <div class="offload-caption" style="font-size:14px;margin-bottom:4px;color:var(--ink-3);">Distillation pipeline &middot; expert &rarr; CNN student</div>
+        <div style="height:260px;background:#fff;border:1px solid var(--rule);border-radius:6px;display:flex;align-items:center;justify-content:center;padding:10px;">
+          <img src="assets/Distillation.png" alt="Distillation pipeline diagram" style="max-width:100%;max-height:100%;object-fit:contain;">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>12 · Mode A &middot; Fun</span><span>Pick a small game, copy a slow expert</span></div>
+</section>
+
+<!-- 11 Mode A — The knowledge gap + architecture -->
+<section>
+  <div class="slide-head">Mode A &mdash; The knowledge gap</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:44px;max-width:1640px;">
+    The math I could have written eventually. The stack around it, I would have skipped.
+  </h2>
+  <div class="stat-row" style="margin-top:20px;gap:60px;">
+    <div class="stat"><span class="num">3,694</span><span class="cap">lines of Python</span></div>
+    <div class="stat"><span class="num">8</span><span class="cap">modules</span></div>
+  </div>
+
+  <div class="two-col" style="margin-top:26px;gap:70px;flex:1;align-items:flex-start;">
+    <div>
+      <div class="sans" style="font-size:20px;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;margin-bottom:14px;">Architecture</div>
+      <div class="arch-list">
+        <div class="arch-group">
+          <div class="arch-group-lbl"><span class="dot" style="background:var(--ink);"></span>Math I own</div>
+          <ul>
+            <li>Engine &mdash; board, moves, undo</li>
+            <li>Minimax &mdash; &alpha;&beta;, transposition, 3 play styles</li>
+            <li>DQN agent &mdash; replay, target net, &epsilon;-greedy</li>
+            <li>Distillation &mdash; teacher &rarr; small student</li>
+          </ul>
+        </div>
+        <div class="arch-group">
+          <div class="arch-group-lbl"><span class="dot" style="background:var(--ink-3);"></span>Adjacent plumbing</div>
+          <ul>
+            <li>Training manager &mdash; workers, checkpoints</li>
+            <li>Parallel rollouts &mdash; <span class="mono" style="font-size:18px;">ProcessPoolExecutor</span></li>
+          </ul>
+        </div>
+        <div class="arch-group">
+          <div class="arch-group-lbl"><span class="dot" style="background:var(--utk);"></span>Stack I didn't know well</div>
+          <ul>
+            <li>Flask server &mdash; JSON API, train / play endpoints</li>
+            <li>Browser client &mdash; live dashboard UI</li>
+            <li>AI-vs-AI arena &mdash; match runner</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sans" style="font-size:20px;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;margin-bottom:10px;">Skills needed vs. skills I had</div>
+      <svg viewBox="0 0 640 460" style="width:100%;max-height:460px;display:block;" aria-label="Knowledge I have is a proper subset of technical knowledge the project needs">
+        <circle cx="320" cy="230" r="215" fill="rgba(255,130,0,0.10)" stroke="#ff8200" stroke-width="3"/>
+        <circle cx="215" cy="250" r="105" fill="#f6f3ea" stroke="#16150f" stroke-width="3"/>
+        <text x="215" y="246" text-anchor="middle" font-family="Inter,sans-serif" font-size="20" font-weight="600" fill="#16150f">Knowledge</text>
+        <text x="215" y="272" text-anchor="middle" font-family="Inter,sans-serif" font-size="20" font-weight="600" fill="#16150f">I have</text>
+        <text x="540" y="48" text-anchor="middle" font-family="Inter,sans-serif" font-size="17" font-weight="600" fill="#a85a35">Technical knowledge</text>
+        <text x="540" y="70" text-anchor="middle" font-family="Inter,sans-serif" font-size="17" font-weight="600" fill="#a85a35">the project needs</text>
+        <text x="430" y="246" text-anchor="middle" font-family="Inter,sans-serif" font-size="17" font-weight="600" fill="#c0392b">Stacks I don't</text>
+        <text x="430" y="268" text-anchor="middle" font-family="Inter,sans-serif" font-size="17" font-weight="600" fill="#c0392b">know well</text>
+      </svg>
+      <div class="callout" style="margin-top:12px;font-size:20px;line-height:1.4;color:var(--ink);max-width:820px;">
+        The outer ring used to be a ceiling on what weekend projects I would attempt.
+        LLM + agents let me build through it &mdash; without giving up the math.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>13 · Mode A &middot; Gap</span><span>Same person, bigger reachable surface</span></div>
+</section>
+
+<!-- 11 Mode B Teaching -->
+<section>
+  <div class="slide-head">Mode B — Teaching · <span class="accent">instructor of record</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:56px;max-width:1640px;">
+    The depth is mine. AI compresses the cost of <span style="font-style:italic;">distribution</span>.
+  </h2>
+  <div class="two-col" style="margin-top:44px;gap:70px;flex:1;align-items:flex-start;">
+    <div>
+      <div style="display:flex;align-items:flex-start;gap:28px;">
+        <div style="flex:0 0 auto;width:260px;border:1px solid var(--rule);border-radius:6px;background:#fff;padding:8px;box-shadow:0 10px 30px -14px rgba(56,40,20,0.22);">
+          <img src="assets/math151-folder.png" alt="MATH 151 Spring 2025 course folder — syllabus, homework, midterm, final, roster" style="width:100%;height:auto;display:block;border-radius:3px;">
+        </div>
+        <ul class="dashes" style="margin:0;">
+          <li>Tidy &amp; proofread <b>lecture notes</b>.</li>
+          <li>Author <b>tutorial exercises</b>, <b>homework</b>, <b>software demos</b>.</li>
+          <li>Wrangle <b>LaTeX</b> — macros, figures, build errors.</li>
+        </ul>
+      </div>
+      <div class="callout" style="margin-top:28px;font-size:26px;line-height:1.35;color:var(--ink-2);max-width:820px;">
+        Most of it is <b>(1) chores</b>, <b>(2) code-adjacent</b> — which means errors happen and debugging isn't fun — and <b>(3) obviously automate-friendly</b> in the age of agents.
+      </div>
+    </div>
+    <div>
+      <div class="skill-card" style="border:3px solid #c0392b;box-shadow:0 0 0 4px rgba(192,57,43,0.12);">
+        <div class="lbl" style="color:#c0392b;letter-spacing:0.18em;">Professional line · non-negotiable</div>
+        <h4 style="font-size:32px;margin-top:6px;">Student work never goes near an LLM.</h4>
+        <ul class="dashes" style="margin-top:14px;">
+          <li>No uploading quizzes, exams, homework submissions, or rosters.</li>
+          <li>No agent <i>computer-use</i> for grading — do not hand the mouse to a model over identifiable student work.</li>
+          <li>Privacy and professionalism first; automate <i>my</i> artifacts, not <i>theirs</i>.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>14 · Mode B · Teaching</span><span>Depth-preserving distribution · students' work stays out</span></div>
+</section>
+
+<!-- 12 Mode C Research -->
+<section>
+  <div class="slide-head">Mode C — Research</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:56px;max-width:1660px;">
+    AI is a <span style="font-style:italic;">fast-prototyper</span> and a <span style="font-style:italic;">verifier</span> here.
+    <br>I stay the author of the mathematics.
+  </h2>
+  <div class="kicker" style="margin-top:10px;font-size:22px;color:var(--ink-3);max-width:1660px;">
+    Two jobs: describe the algorithm in prose and let the agent code it &mdash; then adversarially audit what it hands back.
+  </div>
+  <div class="two-col" style="margin-top:50px;gap:70px;flex:1;">
+    <div>
+      <ul class="dashes">
+        <li>Multigrid, BSAM, diffuse-interface PDEs.</li>
+        <li>Q-learning / DDQN for lattice optimization.</li>
+        <li>MPI parallelization.</li>
+        <li>Dissertation typesetting.</li>
+      </ul>
+      <div class="stat-row" style="margin-top:50px;gap:60px;">
+        <div class="stat"><span class="num">151</span><span class="cap">verification prompts — 1 in every 10 I send to Claude</span></div>
+        <div class="stat"><span class="num">38</span><span class="cap">prompts that cite my advisor's spec as ground truth</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="composer" style="font-size:21px;line-height:1.45;padding:20px 26px 44px;">
+        <div class="src-tag">Claude</div>
+        <div>OK, here is a linearized q-learning model to find the lattice of minimum energy via pairwise atom swapping. Now, we have to abandon some of the features unfortunately. <span style="color:var(--claude-accent);font-weight:700;font-size:25px;line-height:1.3;">Anything &ldquo;energy&rdquo; and &ldquo;forces&rdquo; related needs to be deleted. The reason is, those information are expensive to compute.</span> For the Lennard-Jones, it is not too bad, but eventually we will move to calculate the energy of the whole lattice via a GNN model, which will not output energy experienced and forces acting on each individual atoms. So, we need to rethink how to design the features.<br><br><span style="color:var(--claude-accent);font-weight:700;font-size:25px;line-height:1.3;">Please do not code up anything first. Just help me brainstorm.</span> Give me a proposed list of feature in a table, giving me both the method of how to compute the feature, and also estimate the computational burden (light/medium/heavy).<span class="caret"></span></div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="margin-top:10px;">Verbatim &middot; Q-learning feature redesign, Jul 9, 2025 &middot; claude.ai</div>
+      <div class="kicker" style="margin-top:10px;max-width:640px;font-size:18px;line-height:1.4;">
+        In research, I audit every claim. You cannot outsource the thing you are producing.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>15 · Mode C · Research</span><span>The math is non-negotiably mine</span></div>
+</section>
+
+<!-- 12b Mode C — Fast prototyping -->
+<section>
+  <div class="slide-head">Mode C &mdash; <span class="accent">Fast prototyping</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:52px;max-width:1660px;">
+    I describe the numerics in prose. The agent writes the MATLAB.
+    <br><span style="font-size:34px;color:var(--ink-3);font-weight:400;">The MDP, the discretization, the stencil &mdash; mine. The code &mdash; transcribed.</span>
+  </h2>
+  <div class="two-col" style="margin-top:40px;gap:70px;flex:1;align-items:flex-start;">
+    <div>
+      <ul class="dashes" style="margin-top:0;">
+        <li>Describe the PDE. Describe the scheme. Describe the output format.</li>
+        <li>Ask for one script. Run it. Look at the plot.</li>
+        <li>Where it's wrong, teach the part it got wrong &mdash; not re-ask from scratch.</li>
+        <li>The speed-up is real: a first working prototype in one lunch, not one weekend.</li>
+      </ul>
+      <div class="callout" style="margin-top:32px;padding:20px 24px;border-left:5px solid var(--ink);background:#fbf8ef;font-size:26px;line-height:1.4;color:var(--ink);max-width:800px;">
+        <b>I own the algorithm. AI owns the transcription.</b>
+        <br><span style="color:var(--ink-3);font-size:21px;">Same posture as the advisor-student contract: math is mine; code is a deliverable.</span>
+      </div>
+      <div class="quote-source" style="margin-top:18px;font-size:17px;">
+        Pattern across <b>claude.ai</b> (Q-learning MDP redesign, Dec 2024), <b>Codex</b> (Fortran&rarr;MATLAB BSAM port, 2025&ndash;26), and <b>Gemini</b> (two-sided ODE solver, this deck's slide 29 example).
+      </div>
+    </div>
+    <div>
+      <div class="composer" style="font-size:20px;line-height:1.45;padding:22px 28px 44px;">
+        <div class="src-tag" style="color:#1a73e8;">Gemini &middot; turn 1 (opener)</div>
+        <div>I want you to help me write a numerical ODE solver with cell-center finite difference. The code, in MATLAB, will first construct the stiffness matrix, the forcing vector, and form the system <span class="mono" style="font-size:18px;">Ax=b</span>. Then the numerical solution is computed using the backslash operator <span class="mono" style="font-size:18px;">x = A\b</span>.<br><br>
+        Let <span class="mono" style="font-size:18px;">&Omega;=(-1,1)</span> be the whole domain. Split it into <span class="mono" style="font-size:18px;">&Omega;_L=(-1,0)</span> and <span class="mono" style="font-size:18px;">&Omega;_R=(0,1)</span>. On <span class="mono" style="font-size:18px;">&Omega;_L</span>, <span class="mono" style="font-size:18px;">-u_L''=0</span> (Laplace). On <span class="mono" style="font-size:18px;">&Omega;_R</span>, <span class="mono" style="font-size:18px;">-u_R''+&gamma; u_R=q(x)</span> (elliptic). At the interface <span class="mono" style="font-size:18px;">x=0</span>: continuity plus the transmission <span class="mono" style="font-size:18px;">u_R'-&alpha; u_L'=&lambda;+&kappa; u_R</span>. Neumann at <span class="mono" style="font-size:18px;">x=&plusmn;1</span>.<br><br>
+        Plot the solution as well. Give me <span style="color:var(--claude-accent);font-weight:700;">one single MATLAB script.</span><span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="margin-top:8px;">Verbatim &middot; two-sided ODE opener, Gemini &middot; full math spec in one turn</div>
+      <div class="kicker" style="margin-top:14px;font-size:20px;line-height:1.4;max-width:720px;color:var(--ink-2);">
+        What came back: a single working MATLAB script. Turn 3 onward is where I <i>audit</i> &mdash; see slides 29&ndash;30.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>16 · Mode C · Prototype</span><span>Prose in. Working script out.</span></div>
+</section>
+
+<!-- 13 Three modes summary -->
+<section>
+  <div class="slide-head">Three modes, side by side</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <table class="clean" style="margin-top:50px;width:100%;font-size:28px;">
+    <thead>
+      <tr>
+        <th>Mode</th>
+        <th>Depth source</th>
+        <th>Breadth source</th>
+        <th>AI's role</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mode">Fun</td>
+        <td>&mdash;</td>
+        <td>
+          &mdash; Entire stacks outside applied-math training.<br>
+          &mdash; Weekend hobby, no load-bearing math.
+        </td>
+        <td>
+          &mdash; <b>Co-builder.</b><br>
+          &mdash; Math from me.<br>
+          &mdash; Engineering vocabulary from AI.
+        </td>
+      </tr>
+      <tr>
+        <td class="mode">Teaching</td>
+        <td>Mine.</td>
+        <td>
+          &mdash; Pedagogy &amp; problem design.<br>
+          &mdash; Brainstorming.
+        </td>
+        <td>
+          &mdash; Tidying &amp; proofreading.<br>
+          &mdash; LaTeX coding, visualization.<br>
+          &mdash; Efficiency boost.
+        </td>
+      </tr>
+      <tr>
+        <td class="mode">Research</td>
+        <td>Mine.</td>
+        <td>
+          &mdash; Fast prototype of numerics.<br>
+          &mdash; Plotting, parallelization.<br>
+          &mdash; Deployment.
+        </td>
+        <td>
+          &mdash; <b>Fast-prototyper</b> &amp; <b>verifier</b>.<br>
+          &mdash; Math from me.<br>
+          &mdash; AI transcribes, then audits.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:44px;font-family:'Source Serif 4',serif;font-size:34px;line-height:1.3;color:var(--ink);max-width:1700px;">
+    AI is expanding the <span style="font-style:italic;">radius</span> of what is adjacent to my mathematics.
+    That changes what kind of scientist I can become.
+  </div>
+  <div style="margin-top:22px;padding:24px 28px;border:1px solid var(--rule);border-radius:8px;background:#fbf8ef;max-width:1700px;">
+    <div class="sans" style="font-size:16px;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;margin-bottom:10px;">A second-order effect I care about</div>
+    <ul class="dashes" style="font-size:22px;line-height:1.4;color:var(--ink-2);">
+      <li>Teaching is a responsibility, <b>not</b> my primary research target.</li>
+      <li>AI compresses the <b>chores</b> &mdash; tidying notes, drafting worksheets, wrangling LaTeX.</li>
+      <li>The hours come back to <b>research</b>, or just to <b>life</b>.</li>
+    </ul>
+  </div>
+  <div class="footer"><span>17 · Summary</span><span>Same person, three postures</span></div>
+</section>
+
+<!-- 14 Offload section divider -->
+<section class="section-divider" style="justify-content:center;">
+  <div>
+    <div class="slide-head">Part III · The practice</div>
+    <div class="rule-thick" style="margin-top:20px;"></div>
+    <h2 class="slide-title" style="margin-top:44px;color:var(--paper);font-size:112px;max-width:1500px;">
+      Things I fully <span style="font-style:italic;color:var(--utk);">offload</span> to agents.
+    </h2>
+    <div class="kicker" style="margin-top:36px;max-width:1100px;font-size:28px;">
+      Not every task is a PhD task. When the output isn't load-bearing on my mathematics,
+      I hand the whole thing over — prompt, draft, figure, compile.
+    </div>
+  </div>
+  <div class="footer"><span>18 · Offload</span><span>Three examples, one pattern</span></div>
+</section>
+
+<!-- 15 TikZ diagram generation -->
+<section>
+  <div class="slide-head">Offload · <span class="accent">TikZ figures</span> for lectures &amp; worksheets</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split">
+    <div class="col">
+      <div class="offload-lede" style="margin-top:10px;">
+        I describe the figure in prose, and the model writes the TikZ. It's been a while since I tried to make a TikZ plot by myself.
+      </div>
+      <div class="composer openai small" style="margin-top:10px;">
+        <div class="src-tag">ChatGPT</div>
+        <div>
+          This is the rendered plot. I want you to make changes:<br>
+          1. For the function, use <span class="mono" style="font-size:20px;background:rgba(22,163,74,0.08);padding:1px 4px;border-radius:3px;">f(x) = 1 + 5·x·e^(-0.4x)</span>. Draw tick marks at x = 0,1,…,10, but don't label them numerically.<br>
+          2. Draw 10 rectangles for the intervals [0,1], [1,2], … [9,10]. For the first 4 rectangles, red stripes. For the last 6, green shading.<br>
+          3. Label below x = 3,4,5,6 as k−1, k, k+1, k+2, then <span class="mono" style="font-size:20px;">\cdots</span> for the rest.<span class="caret"></span>
+        </div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source">Verbatim · MATH 142 lecture slide, integral test figure</div>
+      <div class="callout" style="margin-top:18px;padding:20px 24px;border-left:5px solid var(--utk);background:#fff1e2;font-size:26px;line-height:1.4;color:var(--ink);max-width:820px;">
+        <b>Tip.</b> Give the plot as much detail as you can. You're essentially drawing by natural language &mdash; the clearer and more detailed the instruction, the nicer the output.
+      </div>
+    </div>
+    <div class="col">
+      <img src="assets/tutorial-worksheet-output.png" class="offload-img" alt="Rendered TikZ integral test figure" style="max-height:720px;">
+      <div class="offload-caption">Result, dropped directly into the lecture deck. Dropped into the deck as-is.</div>
+    </div>
+  </div>
+  <div class="footer"><span>19 · Offload — TikZ</span><span>Prose in, LaTeX out</span></div>
+</section>
+
+<!-- 16 Tutorial problem / solution writing -->
+<section>
+  <div class="slide-head">Offload · <span class="accent">Tutorial problems</span> from a napkin sketch</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split three" style="margin-top:24px;">
+    <div class="col">
+      <div class="offload-lede" style="margin-top:4px;">
+        I photograph a handwritten scratch — the cone, the shell formula, the setup —
+        and ask for a three-part tutorial question with solutions in my style.
+        Multimodality saves me from re-typing what I already worked out on paper.
+      </div>
+      <div class="composer openai small">
+        <div class="src-tag">ChatGPT · vision</div>
+        <div>
+          I want to write a tutorial question on Volume of a frustum. Let y = −H/R·x + h, where 0 &lt; h &lt; H.<br>
+          Part (a): ask the student to express x* in terms of h.<br>
+          Part (b): ask them to explain why f(x) is that piecewise function.<br>
+          Part (c): ask them to use the shell method to find the volume. Give them the final formula for checking.<br>
+          Make some good TikZ graphs, 2D and 3D, for illustrations. Copy-paste-ready LaTeX.<span class="caret"></span>
+        </div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="callout" style="margin-top:18px;padding:20px 24px;border-left:5px solid var(--utk);background:#fff1e2;font-size:28px;line-height:1.4;color:var(--ink);">
+        <b>Modern LLMs are all multimodal</b> &mdash; you can hand them a photo of your paper notes and they'll read the math.
+      </div>
+    </div>
+    <div class="col" style="gap:14px;">
+      <img src="assets/prompt-frustum-chatgpt.png" class="offload-img" alt="Handwritten frustum sketch on hotel notepad" style="max-height:760px;">
+      <div class="offload-caption">Input: a hotel notepad. Output: a LaTeX worksheet with solutions I can spot-check.</div>
+    </div>
+  </div>
+  <div class="footer"><span>20 · Offload — Problem writing</span><span>Paper → worksheet</span></div>
+</section>
+
+<!-- 17 Frustum rendered PDF -->
+<section>
+  <div class="slide-head">Offload · <span class="accent">Tutorial problems</span> — rendered output</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split" style="grid-template-columns: 0.9fr 1.1fr; margin-top:24px;">
+    <div class="col" style="justify-content:center;">
+      <div class="pill" style="display:inline-block;align-self:flex-start;font-size:22px;font-weight:700;color:var(--ink);letter-spacing:0.12em;padding:8px 18px;border-color:var(--ink-4);">One practical setup</div>
+      <div class="callout" style="margin-top:22px;font-size:38px;line-height:1.3;color:var(--ink);font-weight:500;max-width:760px;">
+        Install a <span style="font-style:italic;">local LaTeX compiler</span>. Let the agent write the <span class="mono" style="font-size:32px;background:var(--paper-2);padding:2px 8px;border-radius:4px;">.tex</span> and compile it.
+      </div>
+      <div class="kicker" style="margin-top:20px;font-size:22px;line-height:1.45;color:var(--ink-2);max-width:720px;">
+        Then your job is just to look at the rendered PDF and say what to change.
+        The loop gets short: <b>describe → compile → read PDF → iterate</b> &mdash; no copy-paste back to the chat.
+      </div>
+      <div class="callout" style="margin-top:20px;padding:18px 22px;border-left:5px solid var(--utk);background:#fff1e2;font-size:22px;line-height:1.45;color:var(--ink);max-width:760px;">
+        <b>Tip.</b> Ask the agent to convert each rendered PDF to a PNG with Python, then read the image back. It can then self-correct positioning and sizing of text and figures.
+      </div>
+    </div>
+    <div class="col">
+      <img src="assets/frustum-rendered-pdf.png" class="offload-img" alt="Rendered PDF of frustum tutorial" style="max-height:740px;background:#fff;padding:12px;">
+      <div class="offload-caption">Final PDF, auto-compiled locally. The agent owns the round-trip.</div>
+    </div>
+  </div>
+  <div class="footer"><span>21 · Offload — Rendered</span><span>Sketch → PDF in one conversation</span></div>
+</section>
+
+
+<!-- 17 Claude agents / commands in IDE -->
+<section>
+  <div class="slide-head">Offload · <span class="accent">Agents &amp; commands</span> for recurring workflows</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split" style="margin-top:24px;">
+    <div class="col">
+      <div class="offload-lede" style="margin-top:4px;">
+        For a whole semester of tutorials, one-shot prompts aren't enough.
+        I built a <b>tutorial-generator agent</b> and a <b>/generate-tutorial</b> command
+        that read my instructor's lecture notes, match his notation, and write questions
+        in his style — <i>consistently</i>, across weeks.
+      </div>
+      <div class="skill-card" style="margin-top:6px;padding:22px 26px;gap:10px;">
+        <div class="lbl">.claude/agents/tutorial-generator.md</div>
+        <h4 style="font-size:26px;">Opus agent — reads lecture PDFs, matches notation, writes in the instructor's voice</h4>
+        <p style="font-size:19px;">Convert PDFs to images, read with vision, catalog demo problems to avoid duplication, generate originals at a 40/40/20 difficulty split, delegate figures to <span class="mono" style="font-size:16px;">tikz-grapher</span>, verify numerics in Python, hand off to <span class="mono" style="font-size:16px;">layout-proofreader</span> for final fixes.</p>
+      </div>
+      <div class="skill-card" style="margin-top:0;padding:22px 26px;gap:10px;">
+        <div class="lbl">.claude/commands/generate-tutorial.md</div>
+        <h4 style="font-size:26px;">Sonnet command — one-shot entry point with a week argument</h4>
+        <p style="font-size:19px;">Takes a worksheet name, pins the tool allowlist, and dispatches to the agent. The command is the muscle memory; the agent holds the craft.</p>
+        <div class="eg"><span style="color:#ffd27a;">$</span> /generate-tutorial Week7<br><span class="c">&rarr; processes LectureToProcess/, writes Week7.tex, Figure/*.tex,<br>&nbsp;&nbsp;&nbsp;compiles Week7Question.pdf + Week7Solution.pdf</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <img src="assets/ide-claude-agents.png" class="offload-img" alt="VSCode with .claude/agents and .claude/commands folders" style="max-height:780px;">
+      <div class="offload-caption">
+        <span class="mono" style="font-size:16px;">.claude/agents/</span> — <i>tikz-grapher</i>, <i>layout-proofreader</i>, <i>tutorial-generator</i>.
+        <span class="mono" style="font-size:16px;">.claude/commands/</span> — <i>/generate-tutorial</i>, <i>/refine</i>.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>22 · Offload — Infrastructure</span><span>One agent, every week of the semester</span></div>
+</section>
+
+<!-- 18 What are skills / agents / commands -->
+<section>
+  <div class="slide-head">Aside · What are <span class="accent">skills, agents, and slash commands</span>?</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-lede" style="margin-top:28px;max-width:1640px;">
+    If you've typed the same preamble twice, you're ready for one of these. And —
+    <b>you don't write them from scratch.</b> You ask the agent to write the agent.
+  </div>
+  <div class="three-col" style="margin-top:38px;gap:32px;flex:1;">
+    <div class="skill-card">
+      <div class="lbl">agents/<span class="mono" style="color:var(--ink);">*.md</span></div>
+      <h4>Subagent</h4>
+      <p>A specialist you can delegate to — its own system prompt, tool list, and model choice.
+        Summoned <i>from inside</i> a bigger task. Think: &ldquo;spawn a proofreader&rdquo;.</p>
+      <div class="eg"><span class="c">---</span><br>name: tikz-grapher<br>description: Turn prose<br>&nbsp;&nbsp;into pgfplots code<br>allowed-tools: [Read, Write]<br><span class="c">---</span></div>
+    </div>
+    <div class="skill-card">
+      <div class="lbl">commands/<span class="mono" style="color:var(--ink);">*.md</span></div>
+      <h4>Slash command</h4>
+      <p>A named shortcut to a long prompt, with arguments.
+        Lives in your repo. Runs the same way every time.
+        Think: <i>macros, but written in English</i>.</p>
+      <div class="eg"><span class="hl">/generate-tutorial</span> Week7<br><span class="c"># expands to the full 6-phase<br># recipe — phases, tools, QA</span></div>
+    </div>
+    <div class="skill-card">
+      <div class="lbl" style="color:var(--claude-accent);">Claude · Skills</div>
+      <h4>Skill</h4>
+      <p>A packaged capability the model loads on demand — prompt, examples, helper scripts.
+        Ships with the assistant; you can also author your own. Think: <i>a teachable habit</i>.</p>
+      <div class="eg"><span class="c"># e.g. built-in skills:</span><br>make-a-deck<br>export-as-pptx<br>save-as-pdf</div>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:36px;font-size:32px;color:var(--ink-2);max-width:1640px;">
+    The meta-move: &ldquo;Here's a rough workflow I keep repeating. <b>Write me an agent that does it.</b>&rdquo;
+    The agent writes the markdown; I review and commit.
+  </div>
+  <div class="footer"><span>23 · Aside — Infrastructure</span><span>Agents, all the way down</span></div>
+</section>
+
+<!-- 19 Style match - pattern matching -->
+<section>
+  <div class="slide-head">Offload · <span class="accent">Style match</span>, not just content match</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split" style="margin-top:22px;">
+    <div class="col">
+      <div class="offload-caption" style="font-size:16px;margin-bottom:8px;">Instructor's lecture slide · MATH 142</div>
+      <img src="assets/instructor-lecture-pattern.png" class="offload-img" alt="Lecture slide: pattern matching, plastic surgery" style="max-height:620px;background:#fff;padding:8px;">
+      <div class="offload-caption" style="margin-top:10px;">
+        His phrase: <span class="mono" style="font-size:17px;background:rgba(217,119,87,0.1);padding:2px 6px;border-radius:3px;color:var(--claude-accent);">&ldquo;pattern matching&rdquo;</span>
+        (followed by his own joke — <i>plastic surgery</i>).
+      </div>
+    </div>
+    <div class="col">
+      <div class="offload-caption" style="font-size:16px;margin-bottom:8px;">Agent-generated solution · Week 2</div>
+      <img src="assets/agent-solution-pattern.png" class="offload-img" alt="Generated solution using 'Pattern matching' language" style="max-height:620px;background:#fff;padding:8px;">
+      <div class="offload-caption" style="margin-top:10px;">
+        The agent opens its answer with the same two words —
+        <span class="mono" style="font-size:17px;background:rgba(217,119,87,0.1);padding:2px 6px;border-radius:3px;color:var(--claude-accent);">&ldquo;Pattern matching:&rdquo;</span> —
+        because that's what the lecture notes called it.
+      </div>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:22px;font-size:24px;line-height:1.35;color:var(--ink-2);max-width:1700px;">
+    The agent read the lecture PDFs first. It picked up not just <i>what</i> to teach, but <b>how the instructor talks about it</b>.
+  </div>
+  <div class="footer"><span>24 · Offload — Style match</span><span>Agent learns the instructor's voice</span></div>
+</section>
+
+<!-- 20 Offload — Claude Design: this very deck -->
+<section>
+  <div class="slide-head">Offload · <span class="accent">Claude Design</span> — I built this deck with it, not Beamer</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split" style="margin-top:22px;">
+    <div class="col">
+      <div class="offload-caption" style="font-size:16px;margin-bottom:8px;">Same project · files + agent building <span class="mono" style="font-size:14px;">generate-tutorial.md</span></div>
+      <img src="assets/claude-design-files.png" class="offload-img" alt="Claude Design file browser with tutorial generation in progress" style="max-height:620px;background:#fff;padding:6px;">
+      <div class="offload-caption" style="margin-top:10px;">
+        Same workspace that writes my tutorials renders my slides. <b>Multimodal in, artifact out</b> — HTML/CSS/JS, no LaTeX class to fight.
+      </div>
+    </div>
+    <div class="col">
+      <div class="offload-caption" style="font-size:16px;margin-bottom:8px;">Preview pane · the cover slide you saw at <span class="mono" style="font-size:14px;">00:00</span></div>
+      <img src="assets/claude-design-preview.png" class="offload-img" alt="Cover slide of this deck rendered in Claude Design preview" style="max-height:620px;background:#fff;padding:6px;">
+      <div class="offload-caption" style="margin-top:10px;">
+        Everything you're looking at — type, rhythm, the frustum figure, the chat mock — <i>this</i> file. One conversation, one living document.
+      </div>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:22px;font-size:24px;line-height:1.35;color:var(--ink-2);max-width:1700px;">
+    New this year: a <b>Design mode</b> that treats slides, posters, and prototypes as first-class outputs. Versatile (decks, videos, interactive figures), and the default aesthetic is good enough that I stopped reaching for Beamer.
+  </div>
+  <div class="footer"><span>25 · Offload — Claude Design</span><span>The deck you're watching is the demo</span></div>
+</section>
+
+<!-- Utilities Prototyping · Claude Design local clone -->
+<section>
+  <div class="slide-head">Utilities Prototyping &middot; <span class="accent">one-off build, when I run out of the real thing</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:22px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:44px;flex:1;align-items:flex-start;">
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+      <div class="offload-lede" style="margin-top:0;font-size:22px;line-height:1.4;">
+        I ran out of Claude Design usage mid-deck and still needed to finish these slides.
+        So I <b>built a local clone</b> of the designer &mdash; same slot-based slide engine, same one-file output, ran through Claude Code instead.
+      </div>
+
+      <div class="composer" style="font-size:20px;line-height:1.5;padding:24px 28px 52px;max-width:none;">
+        <div class="src-tag">Claude</div>
+        <div>I want you to build a quick UI that I can use to see each page rendered, with <span style="color:var(--claude-accent);font-weight:600;">a comment field on the right of each page.</span> I should be able to put comments, mention files in this folder, and when I'm done commenting for one iteration, click Generate &mdash; then <span style="color:var(--claude-accent);font-weight:600;">a markdown file is produced that I can ask you to read and apply changes from.</span>
+        <br><br>
+        There are a lot of <span style="color:var(--claude-accent);font-weight:600;">dynamic elements in the webpage built by Claude Design</span> &mdash; the navigation bar and such. Make sure we keep those fancy features, and mimic the way slides are created currently when we're making changes.<span class="caret"></span></div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:16px;">Verbatim &middot; what you are watching right now, bootstrap prompt &middot; Claude Code CLI</div>
+
+      <div class="skill-card" style="margin-top:4px;padding:20px 24px;gap:8px;">
+        <div class="lbl">Pattern</div>
+        <h4 style="font-size:24px;">Hit a rate limit &rarr; describe the tool &rarr; agent builds the tool.</h4>
+        <p style="font-size:18px;">The point isn't the clone. It's that the cost of &ldquo;I guess I'll just build my own&rdquo; collapsed from a weekend to an afternoon.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0;">
+      <img src="assets/UtilitiesVibeCoding1.png" class="offload-img" alt="Local Claude-Design-style tool built during the deck" style="width:100%;max-height:820px;object-fit:contain;background:#fff;padding:6px;border:1px solid var(--rule);border-radius:6px;">
+      <div class="offload-caption" style="font-size:16px;">Local clone &middot; this very deck is being reviewed in it right now.</div>
+    </div>
+  </div>
+  <div class="footer"><span>26 · Utilities Prototyping · Claude Design clone</span><span>One-off tool built during the work</span></div>
+</section>
+
+<!-- Utilities Prototyping · AI grader -->
+<section>
+  <div class="slide-head">Utilities Prototyping &middot; <span class="accent">deep builds for tools I'll reuse every semester</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="offload-split" style="margin-top:24px;">
+    <div class="col">
+      <div class="offload-lede" style="margin-top:4px;">
+        The other mode is longer-lived. I'm building an <b>AI grader</b> with open-source OCR
+        (PaddleOCR-VL) plus an LLM head, aiming to replace Gradescope for my sections &mdash;
+        student work never leaves my machine.
+      </div>
+      <div class="skill-card" style="margin-top:6px;padding:22px 26px;gap:10px;">
+        <div class="lbl">Pattern</div>
+        <h4 style="font-size:26px;">Reusable tools get the full engineering treatment &mdash; with AI doing the unfun parts</h4>
+        <p style="font-size:19px;">Different playbook than the one-off: longer spec, test harness, versioned agents, careful handling of the depth boundary (rubric is mine, page parsing is automated).</p>
+      </div>
+    </div>
+    <div class="col">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <img src="assets/UtilitiesVibeCoding2.png" class="offload-img" alt="AI grader — OCR pipeline" style="max-height:400px;background:#fff;padding:6px;">
+        <img src="assets/UtilitiesVibeCoding3.png" class="offload-img" alt="AI grader — rubric &amp; score view" style="max-height:400px;background:#fff;padding:6px;">
+      </div>
+      <div class="offload-caption" style="margin-top:10px;">AI grader &middot; OCR + rubric applied to real submissions, on-device.</div>
+    </div>
+  </div>
+  <div class="footer"><span>27 · Utilities Prototyping · AI grader</span><span>Reusable, never uploads student work</span></div>
+</section>
+
+<!-- Part III section divider -->
+<section class="section-divider" style="justify-content:center;">
+  <div>
+    <div class="slide-head">Part IV &middot; The register</div>
+    <div class="rule-thick" style="margin-top:20px;"></div>
+    <h2 class="slide-title" style="margin-top:44px;color:var(--paper);font-size:112px;max-width:1500px;">
+      How I <span style="font-style:italic;color:var(--utk);">prompt</span>.
+    </h2>
+    <div class="kicker" style="margin-top:36px;max-width:1100px;font-size:28px;">
+      Context first. Invariants with reasons. Brainstorm before code.
+      The voice I use with an AI is the voice an advisor uses with a student.
+    </div>
+  </div>
+  <div class="footer"><span>28 · How I prompt</span><span>Three moves, one turn</span></div>
+</section>
+
+<!-- Prompting · 1 — frame the problem (overview / high-level) -->
+<section>
+  <div class="slide-head">How I prompt &middot; <span class="accent">Frame the problem like you'd brief a grad student &middot; high-level</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <h2 class="slide-title" style="margin-top:22px;font-size:46px;line-height:1.15;max-width:1760px;">
+    The whole problem, stated in one page, before a line of code.
+  </h2>
+  <div style="margin-top:22px;display:grid;grid-template-columns:0.85fr 1.15fr;gap:52px;flex:1;align-items:start;">
+    <div>
+      <div class="offload-caption" style="font-size:16px;color:var(--ink-3);margin-bottom:8px;">Tidied grid I later rendered for the talk &middot; $N+2$ unknowns, inner ghosts at the interface.</div>
+      <img src="assets/ode-grid-setup.png" alt="Two-layered cell-centered grid discretization" style="width:100%;max-height:380px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:12px;">
+      <div class="callout" style="margin-top:18px;font-size:22px;line-height:1.4;color:var(--ink-2);">
+        <b>High level first.</b> Domain, PDEs on each side, continuity, transmission, boundary. The advisor writes the <span style="font-style:italic;">problem statement</span> &mdash; the scheme comes on the next slide.
+      </div>
+    </div>
+    <div>
+      <div class="composer" style="font-size:20px;line-height:1.55;padding:26px 30px 52px;max-width:none;">
+        <div class="src-tag" style="color:#1a73e8;font-size:17px;">Gemini</div>
+        <div>I want you to help me write a numerical ODE solver with cell-center finite difference.
+        <br><br>
+        The code, in MATLAB, will first construct the <span style="color:var(--claude-accent);font-weight:600;">stiffness matrix</span>, the <span style="color:var(--claude-accent);font-weight:600;">forcing vector</span>, and form the system $Ax=b$. Then the numerical solution will simply be computed using the backslash operator $x=A\backslash b$.
+        <br><br>
+        Here is the problem:
+        <br><br>
+        Let $\Omega=(-1,1)$ be the whole domain. Now, we split it into two sub-domains: $\Omega_L=(-1,0),\;\Omega_R=(0,1)$.
+        <br>
+        On $\Omega_L$: $-u_L''=0$ &mdash; the Laplace equation.
+        <br>
+        On $\Omega_R$: $-u_R''+\gamma u_R = q(x)$ &mdash; an elliptic problem.
+        <br><br>
+        At $x=0$, the interface, we first have the <span style="color:var(--claude-accent);font-weight:600;">continuity condition</span>: $u_L(0)=u_R(0)$.
+        <br>
+        Then the <span style="color:var(--claude-accent);font-weight:600;">transmission condition</span> at $x=0$: $u_R' - \alpha u_L' = \lambda + \kappa u_R$.
+        <br>
+        Lastly, at $x=\pm 1$ we have the Neumann condition.<span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:17px;">Verbatim &middot; Two-sided ODE solver, Turn 1, first half &middot; Gemini 3.0</div>
+    </div>
+  </div>
+  <div class="footer"><span>29 · Register · 1/6 · High level</span><span>Advisor move: state the problem, not the code</span></div>
+</section>
+
+<!-- Prompting · 2 — implementation details (low level) -->
+<section>
+  <div class="slide-head">How I prompt &middot; <span class="accent">&hellip; then hand over the non-trivial implementation details &middot; low-level</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:16px;display:grid;grid-template-columns:1.15fr 0.85fr;gap:44px;flex:1;align-items:start;min-height:0;">
+    <div style="display:flex;flex-direction:column;min-width:0;">
+      <div style="display:grid;grid-template-columns:[text] 1fr [margin] 0.42fr;column-gap:22px;row-gap:12px;font-size:15px;line-height:1.5;align-items:start;">
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div>Here is the numerical scheme I am proposing. Let $N$ (must be even) be the number of cell-center grid points on $(-1,1)$. So $h=2/N$ is the mesh spacing. Interior points are equally spaced with $x_1=-1+h/2$ and $x_N=1-h/2$.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Convention</div>
+          Fix the geometry first: even $N$, mesh $h=2/N$, cell-centered grid.
+        </div>
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div>However, the linear system will have <span style="color:var(--claude-accent);font-weight:600;">$N+2$ unknowns</span>, because we use $N/2+1$ points for $\Omega_L$ and $N/2+1$ for $\Omega_R$.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Non-trivial</div>
+          Double-count at the interface. The model cannot infer this from the PDE.
+        </div>
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div>For $N=8$ the picture shows 10 unknowns: $u_1\dots u_5$ on the left, $u_6\dots u_{10}$ on the right. $u_4$ and $u_6$ share the same $x$; $u_5$ and $u_7$ share the same $x$.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Pin it with $N=8$</div>
+          Concrete example + visual (image.png) kills ambiguity.
+        </div>
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div><span style="color:var(--claude-accent);font-weight:600;">Continuity as averaging:</span> $\tfrac{1}{2}(u_4+u_5)=\tfrac{1}{2}(u_6+u_7)$, i.e. $u_4+u_5-u_6-u_7=0$.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Discretization trick</div>
+          Average across the two inner ghosts to realize $u_L(0)=u_R(0)$.
+        </div>
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div><span style="color:var(--claude-accent);font-weight:600;">Transmission row:</span> $u_R'(0)=(u_7-u_6)/h$, $u_L'(0)=(u_5-u_4)/h$, $u_R(0)=\tfrac{1}{2}(u_6+u_7)$. So $(u_7-u_6)/h - \alpha(u_5-u_4)/h - (\kappa/2)(u_6+u_7) = \lambda$.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Exact row</div>
+          I hand Gemini the exact matrix row, not a description of it.
+        </div>
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div>Interior points: standard $(-1,2,-1)$ stencil. At $x=\pm 1$ the Neumann condition is absorbed via ghost cells $x_0, x_{N+1}$ &mdash; we never carry them as unknowns.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Boundary handling</div>
+          Ghost cells are absorbed into the stencil; the system stays $N+2$.
+        </div>
+
+        <div class="composer" style="grid-column:text;font-size:15px;line-height:1.5;padding:14px 18px 14px;max-width:none;">
+          <div class="src-tag" style="color:#1a73e8;font-size:13px;">Gemini</div>
+          <div>Driver: define $\alpha,\gamma,\kappa,\lambda,q(x),N$ at the top. Assemble, solve with backslash, then <span style="color:var(--claude-accent);font-weight:600;">extract the 8-point physical solution</span> by dropping the redundant interface copy &mdash; e.g. $(u_1,u_2,u_3,u_4,u_5,u_8,u_9,u_{10})$. Plot. One single MATLAB script.</div>
+        </div>
+        <div style="grid-column:margin;font-family:Inter,sans-serif;font-size:15px;line-height:1.4;color:var(--ink-2);padding-top:4px;">
+          <div class="sans" style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;">Deliverable spec</div>
+          User-defined vs. derived parameters, extraction rule, output format.
+        </div>
+
+      </div>
+      <div class="quote-source" style="font-size:15px;margin-top:10px;">Verbatim &middot; Turn 1, second half &middot; grouped per advisor-move so you can see what I'm teaching Gemini.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+      <div class="offload-caption" style="font-size:18px;color:var(--ink-3);">Multimodal inputs (all attached to the same prompt)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <img src="assets/ode-handwritten.png" alt="handwritten grid" style="width:100%;height:190px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:6px;">
+          <div class="offload-caption" style="font-size:15px;margin-top:4px;">image.png &middot; grid sketch</div>
+        </div>
+        <div>
+          <img src="assets/ode-grid-setup.png" alt="tikz-rendered clean version" style="width:100%;height:190px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:6px;">
+          <div class="offload-caption" style="font-size:15px;margin-top:4px;">tidied TikZ (audience)</div>
+        </div>
+        <div>
+          <img src="assets/ode-stencil-L.png" alt="handwritten stencil rows for left domain" style="width:100%;height:220px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:6px;">
+          <div class="offload-caption" style="font-size:15px;margin-top:4px;">image-1.png &middot; $\Omega_L$ rows</div>
+        </div>
+        <div>
+          <img src="assets/ode-stencil-R.png" alt="handwritten stencil rows for right domain" style="width:100%;height:220px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:6px;">
+          <div class="offload-caption" style="font-size:15px;margin-top:4px;">image-2.png &middot; $\Omega_R$ rows</div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:12px;font-size:22px;line-height:1.45;color:var(--ink);">
+        The pair of slides, together, is the move: <b>high-level spec</b> on the previous slide &mdash; &ldquo;here's what the problem is.&rdquo; <b>Low-level recipe</b> here &mdash; &ldquo;here's exactly how to discretize it.&rdquo;
+        <br><br>
+        Gemini isn't asked to invent the scheme. It's asked to type it.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>30 · Register · 2/6 · Low level</span><span>Advisor move: hand over the non-trivial steps</span></div>
+</section>
+
+<!-- Prompting · 2/5 — audit against physics -->
+<section>
+  <div class="slide-head">How I prompt &middot; <span class="accent">Audit against a physical invariant, not against the compiler</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="two-col" style="margin-top:28px;gap:60px;flex:1;align-items:flex-start;">
+    <div>
+      <div class="offload-caption" style="font-size:18px;color:var(--ink-3);margin-bottom:8px;">The first plot Gemini produced</div>
+      <img src="assets/ode-wrong-plot.png" alt="Numerical solution with a linear u_L, which violates the physics" style="width:100%;max-height:620px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:10px;">
+      <div class="callout" style="margin-top:16px;font-size:24px;line-height:1.4;color:var(--ink-2);">
+        The code compiles. The plot renders. But $-u_L''=0$ with Neumann at $x=-1$ forces a <b>constant</b> on $\Omega_L$ &mdash; the red line shouldn't slope.
+      </div>
+    </div>
+    <div>
+      <div class="composer" style="font-size:26px;line-height:1.55;padding:30px 34px 52px;max-width:none;">
+        <div class="src-tag" style="color:#1a73e8;font-size:18px;">Gemini</div>
+        <div><span style="color:var(--claude-accent);font-weight:700;font-size:32px;line-height:1.35;">This is the solved solution. I can tell it is not following our equations, because the solution on $\Omega_L$ should be a constant function.</span>
+        <br><br>
+        Check and make sure your stiffness matrix assembly and forcing vector follow my logic strictly. In particular, only $x=-1$ and $x=1$ use the $(3,-1)$ stencil; every other interior point uses the $(-1,2,-1)$ stencil for the second derivative.<span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:18px;">Verbatim &middot; Turn 3 &middot; spotting the wrong physics before opening the code</div>
+      <div class="kicker" style="margin-top:32px;max-width:720px;font-size:28px;line-height:1.35;">
+        &ldquo;I could have run unit tests. The physics <span style="font-style:italic;">is</span> the test.&rdquo;
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>31 · Register · 3/6</span><span>Physics before unit tests</span></div>
+</section>
+
+<!-- Prompting · 3/5 — teach the derivation -->
+<section>
+  <div class="slide-head">How I prompt &middot; <span class="accent">Teach the model the derivation; don't re-ask the question</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="two-col" style="margin-top:28px;gap:60px;flex:1;align-items:flex-start;">
+    <div>
+      <div class="composer" style="font-size:25px;line-height:1.6;padding:30px 34px 52px;max-width:none;">
+        <div class="src-tag" style="color:#1a73e8;font-size:18px;">Gemini</div>
+        <div>OK, I know why you are confused. $u_1$ corresponds to the grid point $x = -1 + h/2$. $u_0$ is a ghost cell at $x = -1 - h/2$ we do not solve explicitly.
+        <br><br>
+        <span style="color:var(--claude-accent);font-weight:600;">So, if $u''=0$ at $x=-1$:</span>  $-u_0 + 2u_1 - u_2 = 0$. But $u_0 = u_1$ by Neumann, so $-u_1 + 2u_1 - u_2 = 0$, i.e. $u_1 - u_2 = 0$.
+        <br><br>
+        <span style="color:var(--claude-accent);font-weight:600;">Can you check similarly for $x=1$, and correct the code?</span><span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:18px;">Verbatim &middot; Turn 4 &middot; re-deriving the Neumann stencil from ghost cells</div>
+    </div>
+    <div>
+      <div class="skill-card" style="background:#fff;padding:34px 38px;gap:18px;">
+        <div class="lbl" style="font-size:22px;">The advisor move</div>
+        <h4 style="font-size:40px;line-height:1.2;">Re-derive the step, don't re-paste the question.</h4>
+        <p style="font-size:24px;line-height:1.5;">Gemini had deferred to a $(3,-1)$ stencil from my handwritten note &mdash; which was actually a Dirichlet coefficient, not Neumann. Instead of saying &ldquo;redo the Neumann,&rdquo; I walked through the ghost cell, the substitution, and the resulting $u_1 - u_2 = 0$ equation. Then asked it to mirror the derivation at $x=1$.</p>
+        <div class="eg" style="font-size:20px;line-height:1.6;"><span class="c"># what this replaces:</span><br>&ldquo;no that's wrong, fix the left Neumann&rdquo;<br><br><span class="c"># what it produces:</span><br>the model generalizes the <i>method</i>, not the patch.</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>32 · Register · 4/6</span><span>Re-derive, don't re-ask</span></div>
+</section>
+
+<!-- Prompting · 4/5 — catch the conceptual bug -->
+<section>
+  <div class="slide-head">How I prompt &middot; <span class="accent">The bug that isn't syntactic</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="two-col" style="margin-top:28px;gap:60px;flex:1;align-items:flex-start;">
+    <div>
+      <div style="font-family:'Source Serif 4',serif;font-size:32px;line-height:1.3;color:var(--ink);max-width:860px;">
+        Goal: measure asymptotic convergence as $\alpha \to 0$ &mdash; the "relaxed" transmission limits to the sharp interface.
+        <br><br>
+        Symptom: <span class="mono" style="font-size:28px;color:var(--danger);">L2 Slope: NaN</span>. Every $\alpha$ gave <i>the same</i> solution.
+      </div>
+      <div class="eg" style="margin-top:28px;background:#0f0e0b;color:#d7d2c1;padding:24px 28px;border-radius:8px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:22px;line-height:1.55;">
+        <span style="color:#ffd27a;">for</span> s = 1:n_samples<br>
+        &nbsp;&nbsp;alpha_param = alpha_list(s);<br>
+        &nbsp;&nbsp;<span style="color:#9fb2ff;">%</span> recomputed every iteration:<br>
+        &nbsp;&nbsp;<span style="color:var(--claude-accent);">lambda = val_duR_0 - alpha_param*val_duL_0 - kappa*val_uR_0;</span><br>
+        &nbsp;&nbsp;...
+      </div>
+    </div>
+    <div>
+      <div class="composer" style="font-size:26px;line-height:1.6;padding:30px 34px 52px;max-width:none;">
+        <div class="src-tag" style="color:#1a73e8;font-size:18px;">Gemini</div>
+        <div>I think I understand why.
+        <br><br>
+        <span style="color:var(--claude-accent);font-weight:600;">$\lambda$ depends on only the sharp interface solution, not changing with $\alpha$.</span>
+        <br><br>
+        If we recalculate $\lambda$ for every $\alpha$ to match the manufactured solution, we are solving the same physical problem on different grids &mdash; <span style="color:var(--claude-accent);font-weight:600;">effectively hiding the $\alpha$ perturbation we want to study.</span><span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:18px;">Verbatim &middot; Turn 10 &middot; the conceptual bug, found by me, not the compiler</div>
+      <div class="kicker" style="margin-top:32px;max-width:720px;font-size:28px;line-height:1.35;">
+        One line. Zero error messages. Finding it requires knowing <span style="font-style:italic;">what the study is for</span>.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>33 · Register · 5/6</span><span>The silent bug is the important one</span></div>
+</section>
+
+<!-- Prompting · 5/5 — reject "make it work" hacks -->
+<section>
+  <div class="slide-head">How I prompt &middot; <span class="accent">Don't let the model launder the physics</span></div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:24px;display:grid;grid-template-columns:0.95fr 1.05fr;gap:56px;flex:1;align-items:start;">
+    <div>
+      <div class="offload-caption" style="font-size:18px;color:var(--ink-3);margin-bottom:10px;">Gemini's workaround &mdash; swap the reference solution so the test &ldquo;works&rdquo;</div>
+      <div class="eg" style="background:#fbf8ef;color:var(--ink);padding:24px 28px;border-radius:8px;border:1px solid var(--rule);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:22px;line-height:1.55;">
+        <span class="c" style="color:#8b8778;">% Omega_L: u_L = 0.1*x + 2</span><br>
+        <span class="c" style="color:#8b8778;">% (linear, ensuring u_L' != 0)</span><br>
+        u_ex_L &nbsp;= <span style="color:#1a73e8;">@(x)</span> 0.1 .* x + 2;<br>
+        du_ex_L = <span style="color:#1a73e8;">@(x)</span> 0.1 .* ones(size(x));
+      </div>
+      <div class="callout" style="margin-top:28px;font-size:26px;line-height:1.4;color:var(--ink);">
+        When a model edits the spec to make the test pass, that isn't a test &mdash; it's a lie.
+        <br><br>
+        The advisor move: <b>reject the hack, keep the spec</b>. The convergence study only means something if $\alpha$ is the <span style="font-style:italic;">only</span> thing moving.
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div class="composer" style="font-size:24px;line-height:1.5;padding:22px 26px 52px;">
+        <div class="src-tag" style="color:#1a73e8;font-size:16px;">Gemini</div>
+        <div><span style="color:var(--claude-accent);font-weight:600;">Why are you changing my reference solution? It should be the constant function.</span><span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:16px;margin-top:-12px;">Turn 14</div>
+
+      <div class="composer" style="font-size:24px;line-height:1.5;padding:22px 26px 52px;">
+        <div class="src-tag" style="color:#1a73e8;font-size:16px;">Gemini</div>
+        <div><span style="color:var(--claude-accent);font-weight:600;">But the problem is, I know the fact that $u_L = 0.1x + 2$ is not a solution to the sharp interface problem at all.</span><span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:16px;margin-top:-12px;">Turn 16</div>
+
+      <div class="composer" style="font-size:24px;line-height:1.5;padding:22px 26px 52px;">
+        <div class="src-tag" style="color:#1a73e8;font-size:16px;">Gemini</div>
+        <div>OK, I know what you screwed up. <span style="color:var(--claude-accent);font-weight:600;">Let's go back. We compute the coefficients and forcing function ONCE, at the beginning, and feed them to the solver. Then we let the linear system do the work. You are overcomplicating it.</span><span class="caret"></span></div>
+        <div class="send" style="background:#1a73e8;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="font-size:16px;margin-top:-12px;">Turn 17 &middot; diagnosing the overcomplication</div>
+    </div>
+  </div>
+  <div class="footer"><span>34 · Register · 6/6</span><span>No physics-laundering shortcuts</span></div>
+</section>
+
+<!-- 15 Prompting - Rigor -->
+<section>
+  <div class="slide-head">How I prompt · Rigor practices</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div class="two-col" style="margin-top:42px;gap:70px;flex:1;">
+    <div>
+      <div class="stat-row" style="gap:50px;">
+        <div class="stat"><span class="num" style="font-size:140px;">151</span><span class="cap" style="max-width:340px;">verification prompts across 1,632 — roughly one in every ten.</span></div>
+      </div>
+      <ul class="dashes" style="margin-top:40px;">
+        <li>Triangulate across models. Never treat one AI as oracle.</li>
+        <li>Push back on over-engineering. Correctness ≠ acceptability.</li>
+        <li>Ground truth is the advisor's code, the derivation, the paper.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="composer">
+        <div class="src-tag">Claude</div>
+        <div>Remove the for loop (the inner loop). Now, instead of swapping atom j with atom i, where I is the for loop index, we now define atom I to be the atom that has the lowest Q-value in the current lattice.<br><br><span style="color:var(--claude-accent);font-weight:700;font-size:28px;line-height:1.35;">Before you give me the code, please try to explain on what I just said. I want to make sure we are on the same page first.</span><span class="caret"></span></div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source">Verbatim · Q-learning swap refactor, Nov 7, 2024 — the money-quote of the corpus</div>
+      <div class="callout" style="margin-top:18px;padding:18px 22px;border-left:5px solid var(--utk);background:#fff1e2;font-size:20px;line-height:1.45;color:var(--ink);max-width:760px;">
+        <b>Tip.</b> CLI coding agents from different companies can call each other via official plugins &mdash; e.g. OpenAI ships a <i>Codex Skill</i> for Claude Code. Even without plugins, every modern CLI agent is headlessly callable via bash, so you can pipe one into another.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>35 · Rigor</span><span>The advisor–grad-student contract, compressed</span></div>
+</section>
+
+<!-- 16 Prompting - Meta / Triangulation (cream + green together) -->
+<section>
+  <div class="slide-head">How I prompt · Meta-patterns</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:30px;display:grid;grid-template-columns:1.1fr 1fr;gap:50px;flex:1;">
+    <div>
+      <ul class="dashes" style="margin-top:0;font-size:26px;line-height:1.45;">
+        <li><span style="color:var(--ink);font-weight:600;">I own the algorithm. AI owns the transcription.</span></li>
+        <li><span style="color:var(--ink);font-weight:600;">Concrete hooks beat abstract descriptions.</span> &ldquo;Rank 2 finished early&rdquo; &gt; &ldquo;debug this.&rdquo;</li>
+        <li><span style="color:var(--ink);font-weight:600;">Infrastructure &gt; re-prompting.</span> <span class="mono" style="font-size:24px;">CLAUDE.md</span>, subagents, slash commands.</li>
+        <li><span style="color:var(--ink);font-weight:600;">Triangulate.</span> One model reviews another; a third adjudicates.</li>
+      </ul>
+      <div class="kicker" style="margin-top:36px;max-width:640px;font-size:26px;line-height:1.4;">
+        Two composer styles, for two tools. By the fourth time you see them, you recognize the posture.
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:28px;">
+      <div class="composer" style="font-size:28px;padding:26px 30px 54px;">
+        <div class="src-tag">Claude</div>
+        <div>I pass the code to another AI, and he made the following comment. Can you check each point, and see if you agree? If yes, make the appropriate changes. Output me the fully changed code. &hellip;<span class="caret"></span></div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="composer openai" style="font-size:28px;padding:26px 30px 22px;">
+        <div class="src-tag">ChatGPT / Codex</div>
+        <div>I asked another AI and see if they can see the problem. Here are their replies. Can you analyze their replies, and see if it make sense at all? Do not modify the code yet, just analyze their comments first.<span class="caret"></span></div>
+        <div class="send"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="quote-source" style="margin-top:-6px;font-size:18px;">Both verbatim · MPI deadlock cross-examination, 2024–25</div>
+    </div>
+  </div>
+  <div class="footer"><span>36 · Meta</span><span>Triangulation as methodology</span></div>
+</section>
+
+<!-- 17 Four principles -->
+<section>
+  <div class="slide-head">Four operating principles</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:50px;flex:1;display:flex;flex-direction:column;justify-content:center;">
+    <div class="principle-row">
+      <div class="n">01</div>
+      <div><div class="t">Math is the ground truth.</div><div class="d">The paper, the advisor's code, the derivation. Not the model's answer.</div></div>
+    </div>
+    <div class="principle-row">
+      <div class="n">02</div>
+      <div><div class="t">AI is peer review, not an oracle.</div><div class="d">It can be wrong. You can push back. You should.</div></div>
+    </div>
+    <div class="principle-row">
+      <div class="n">03</div>
+      <div><div class="t">Concrete beats abstract.</div><div class="d">Point at the symptom; give it a specific place to look.</div></div>
+    </div>
+    <div class="principle-row">
+      <div class="n">04</div>
+      <div><div class="t">Infrastructure beats repetition.</div><div class="d">If you type the same instructions twice, put them in a file.</div></div>
+    </div>
+  </div>
+  <div class="footer"><span>37 · Principles</span><span>The whole methodology, four lines</span></div>
+</section>
+
+<!-- 18 Back to the provocation -->
+<section style="justify-content:center;">
+  <div class="pill">Back to the question we opened with</div>
+  <div class="callout" style="margin-top:50px;font-size:52px;line-height:1.28;max-width:1650px;">
+    The question isn't whether <em>&ldquo;agentic coding&rdquo;</em> adds or subtracts points.<br><br>
+    The question is whether the candidate has treated AI as a <span style="text-decoration:underline;text-decoration-color:var(--utk);text-underline-offset:10px;">shortcut</span>
+    or as an <span style="text-decoration:underline;text-decoration-color:var(--utk);text-underline-offset:10px;">amplifier of existing depth</span>.
+  </div>
+  <div style="margin-top:60px;font-family:'Source Serif 4',serif;font-size:36px;color:var(--ink-3);font-style:italic;max-width:1500px;">
+    You can tell which by looking at whether they still own their mathematics.
+  </div>
+  <div class="footer"><span>38 · Reframe</span><span>Not a verdict — a test</span></div>
+</section>
+
+<!-- Part V section divider -->
+<section class="section-divider" style="justify-content:center;">
+  <div>
+    <div class="slide-head">Part V &middot; The takeaway</div>
+    <div class="rule-thick" style="margin-top:20px;"></div>
+    <h2 class="slide-title" style="margin-top:44px;color:var(--paper);font-size:112px;max-width:1500px;">
+      One <span style="font-style:italic;color:var(--utk);">test</span>. Not a verdict.
+    </h2>
+    <div class="kicker" style="margin-top:36px;max-width:1100px;font-size:28px;">
+      What I look for in a candidate &mdash; or in myself &mdash; when the CVs all look the same.
+    </div>
+  </div>
+  <div class="footer"><span>39 · Part V</span><span>The takeaway</span></div>
+</section>
+
+<!-- 19 Takeaway -->
+<section style="justify-content:center;align-items:center;text-align:center;">
+  <div class="pill" style="align-self:center;">Takeaway</div>
+  <div style="margin-top:60px;font-family:'Source Serif 4',serif;font-size:80px;line-height:1.18;font-weight:500;letter-spacing:-0.02em;max-width:1500px;">
+    AI collapsed the cost of <span style="font-style:italic;">breadth</span>.
+    <br>
+    Depth is still a PhD's job.
+    <br>
+    <span style="color:var(--utk-ink);">Use the first to make the second go further.</span>
+  </div>
+  <div class="footer"><span>40 · Takeaway</span><span>One sentence. That's the talk.</span></div>
+</section>
+
+<!-- 20 Thank you -->
+<section>
+  <div class="slide-head">Thank you</div>
+  <div class="rule-thick" style="margin-top:18px;"></div>
+  <div style="margin-top:80px;flex:1;display:grid;grid-template-columns:1.2fr 1fr;gap:80px;align-items:flex-start;">
+    <div>
+      <div style="font-family:'Source Serif 4',serif;font-size:120px;line-height:1;font-weight:500;letter-spacing:-0.02em;">
+        Questions?
+      </div>
+      <div class="kicker" style="margin-top:40px;font-size:30px;max-width:900px;line-height:1.3;">
+        Happy to hear counter-examples — domains where this framing doesn't hold up. I'm sure there are some.
+      </div>
+    </div>
+    <div style="font-family:'Inter',sans-serif;color:var(--ink-2);font-size:24px;line-height:1.6;">
+      <div style="color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;font-size:18px;font-weight:600;">Contact</div>
+      <div style="height:1px;background:var(--rule);margin:10px 0 18px;"></div>
+      <div style="font-family:'Source Serif 4',serif;font-size:32px;color:var(--ink);font-weight:500;">Calvin (Ming Hei) Wong</div>
+      <div style="margin-top:4px;">PhD Candidate, Mathematics</div>
+      <div>University of Tennessee, Knoxville</div>
+      <div style="margin-top:20px;" class="mono">mwong4 [at] vols.utk.edu</div>
+      <div style="margin-top:36px;">
+        <img src="assets/utk-logo.png" alt="UTK" style="height:90px;opacity:0.9;">
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>41 · Q&amp;A</span><span>Thank you.</span></div>
+</section>
+
+</deck-stage>
+
+<script>
+// Populate the timeline. Each event is tagged with a category:
+//   'model'   — new foundation model release
+//   'app'     — new consumer/prosumer application or surface
+//   'feature' — significant feature, plugin, tool, capability shipped
+// Category drives the shape (SVG) drawn on the lane. Major events get a thicker halo.
+(function(){
+  const START = new Date('2026-01-01').getTime();
+  const END = new Date('2026-04-18').getTime();
+  const pct = d => ((new Date(d).getTime() - START) / (END - START)) * 100;
+
+  // [date, major, label, category]
+  const anth = [
+    ['2026-01-12', true,  'Cowork',            'app'],
+    ['2026-01-13', false, 'Labs',              'feature'],
+    ['2026-01-30', false, 'Cowork launch',     'app'],
+    ['2026-02-05', true,  'Opus 4.6',          'model'],
+    ['2026-02-17', false, 'Sonnet 4.6',        'model'],
+    ['2026-02-24', false, 'Cowork enterprise', 'app'],
+    ['2026-02-28', false, 'Code Security',     'feature'],
+    ['2026-03-06', false, 'v2.1.63',           'feature'],
+    ['2026-03-12', false, 'Voice Mode',        'feature'],
+    ['2026-03-17', true,  'Dispatch',          'feature'],
+    ['2026-03-20', false, 'Channels',          'feature'],
+    ['2026-03-23', true,  'Computer Use',      'feature'],
+    ['2026-03-24', false, 'Auto mode',         'feature'],
+    ['2026-03-26', false, 'Loop',              'feature'],
+    ['2026-03-28', false, 'Remote Control',    'feature'],
+    ['2026-04-07', false, 'Mythos',            'model'],
+    ['2026-04-08', false, 'Ultraplan',         'feature'],
+    ['2026-04-16', true,  'Opus 4.7',          'model'],
+    ['2026-04-17', true,  'Claude Design',     'app'],
+  ];
+  const oa = [
+    ['2026-01-07', false, 'Health',            'app'],
+    ['2026-01-10', false, '5.2 thinking',      'model'],
+    ['2026-01-12', false, 'Custom GPT→5.2',    'feature'],
+    ['2026-01-20', false, 'ads test',          'feature'],
+    ['2026-01-25', false, 'Go expand',         'feature'],
+    ['2026-01-30', false, 'visual responses',  'feature'],
+    ['2026-02-03', false, 'thinking tune',     'feature'],
+    ['2026-02-12', false, '5.3 Instant',       'model'],
+    ['2026-02-18', false, 'age safeguards',    'feature'],
+    ['2026-03-05', true,  'GPT-5.4',           'model'],
+    ['2026-03-09', false, '5.3-Codex',         'model'],
+    ['2026-03-11', false, '5.1 retired',       'model'],
+    ['2026-03-15', false, 'plugins',           'feature'],
+    ['2026-03-18', false, 'triggers',          'feature'],
+    ['2026-03-22', false, 'Sec Agent',         'feature'],
+    ['2026-03-24', false, 'Spud pretrain',     'model'],
+    ['2026-04-03', false, 'Rosalind',          'model'],
+    ['2026-04-14', false, '5.4-Cyber',         'model'],
+    ['2026-04-17', true,  'Codex desktop',     'app'],
+  ];
+  const goog = [
+    ['2026-01-05', false, 'Google TV',         'app'],
+    ['2026-01-20', false, 'Android timeline',  'app'],
+    ['2026-02-19', true,  'Gemini 3.1 Pro',    'model'],
+    ['2026-02-26', true,  'Nano Banana 2',     'model'],
+    ['2026-03-03', false, '3.1 Flash-Lite',    'model'],
+    ['2026-03-08', false, 'Live API',          'feature'],
+    ['2026-03-12', false, 'Lyria 3',           'model'],
+    ['2026-03-15', false, 'Veo 3.1 Lite',      'model'],
+    ['2026-03-18', false, 'Pixel Drop',        'feature'],
+    ['2026-03-22', false, 'Circle x-item',     'feature'],
+    ['2026-03-26', false, 'Gemma 4',           'model'],
+    ['2026-03-30', false, 'Computer Use',      'feature'],
+    ['2026-04-02', false, 'Siri partner',      'app'],
+    ['2026-04-05', false, 'storage',           'feature'],
+    ['2026-04-12', false, 'Flex tiers',        'feature'],
+  ];
+
+  // Which SVG shape to draw per category. Tweakable.
+  const TIMELINE_SYMBOLS = /*EDITMODE-BEGIN*/{
+    "model": "star",
+    "app": "triangle",
+    "feature": "cross"
+  }/*EDITMODE-END*/;
+
+  // Registry of available shapes. Each draws centered at (0,0) in a 20x20 viewBox.
+  const SHAPES = {
+    circle:   s => '<circle cx="0" cy="0" r="'+(s*0.48)+'"/>',
+    triangle: s => { const r=s*0.58; const p=[[0,-r],[r*0.866,r*0.5],[-r*0.866,r*0.5]]; return '<polygon points="'+p.map(q=>q.join(',')).join(' ')+'"/>'; },
+    square:   s => { const h=s*0.44; return '<rect x="'+(-h)+'" y="'+(-h)+'" width="'+(h*2)+'" height="'+(h*2)+'"/>'; },
+    diamond:  s => { const r=s*0.58; return '<polygon points="0,'+(-r)+' '+r+',0 0,'+r+' '+(-r)+',0"/>'; },
+    cross:    s => { const h=s*0.52, t=s*0.18; return '<rect x="'+(-t)+'" y="'+(-h)+'" width="'+(t*2)+'" height="'+(h*2)+'"/><rect x="'+(-h)+'" y="'+(-t)+'" width="'+(h*2)+'" height="'+(t*2)+'"/>'; },
+    star:     s => { const R=s*0.58, r=s*0.24, pts=[]; for(let i=0;i<10;i++){ const a=-Math.PI/2 + i*Math.PI/5; const rr=i%2?r:R; pts.push((rr*Math.cos(a)).toFixed(2)+','+(rr*Math.sin(a)).toFixed(2)); } return '<polygon points="'+pts.join(' ')+'"/>'; },
+  };
+
+  function renderTick(category, major){
+    const size = major ? 20 : 13;
+    const shape = TIMELINE_SYMBOLS[category] || 'circle';
+    const body = (SHAPES[shape] || SHAPES.circle)(size);
+    const halo = major ? '<circle cx="0" cy="0" r="'+(size*0.75)+'" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>' : '';
+    return '<svg class="tl-svg'+(major?' major':'')+'" viewBox="-12 -12 24 24" width="'+(size+6)+'" height="'+(size+6)+'" aria-hidden="true">'+halo+body+'</svg>';
+  }
+
+  // Overlap resolver: treat each glyph as a 1-D interval on the lane. Detect
+  // chains of consecutive overlapping intervals and spread each chain with
+  // minimum spacing, centered on the chain's mean natural position. Iterate
+  // until no chain remains — this handles long runs and neighboring clusters
+  // that a single-pass fanout cannot.
+  //
+  // Per-glyph half-widths are set from the SVG dimensions in renderTick (26px
+  // for majors, 19px for minors) plus a small buffer so majors have a hair of
+  // breathing room. GAP is the clear pixels required between adjacent edges.
+  const HALF_MAJOR = 14;
+  const HALF_MINOR = 11;
+  const GAP = 3;
+
+  function place(laneId, data){
+    const el = document.getElementById(laneId);
+    if(!el) return;
+    el.innerHTML = '';
+
+    const laneW = el.offsetWidth;
+    if (!laneW) { setTimeout(() => place(laneId, data), 40); return; }
+
+    const items = [];
+    data.forEach(([d, major, , cat]) => {
+      const leftPct = pct(d);
+      if (leftPct < 0 || leftPct > 100) return;
+      items.push({
+        d, major, cat, leftPct,
+        xNat: leftPct * laneW / 100,
+        halfW: major ? HALF_MAJOR : HALF_MINOR,
+      });
+    });
+    if (!items.length) return;
+    items.sort((a, b) => a.xNat - b.xNat);
+    items.forEach(it => { it.x = it.xNat; });
+
+    // Iterative chain resolution. Convergence is typically 1–3 iterations;
+    // the cap is a safety net.
+    for (let iter = 0; iter < 20; iter++) {
+      const chains = [[items[0]]];
+      for (let i = 1; i < items.length; i++) {
+        const last = chains[chains.length - 1];
+        const prev = last[last.length - 1];
+        const cur = items[i];
+        const overlap = (cur.x - cur.halfW) < (prev.x + prev.halfW + GAP);
+        if (overlap) last.push(cur);
+        else chains.push([cur]);
+      }
+      let changed = false;
+      for (const c of chains) {
+        if (c.length < 2) continue;
+        // Relative centers anchored at c[0].
+        const rel = [0];
+        for (let i = 1; i < c.length; i++) {
+          rel.push(rel[i-1] + c[i-1].halfW + GAP + c[i].halfW);
+        }
+        const meanNat = c.reduce((s, it) => s + it.xNat, 0) / c.length;
+        const meanRel = rel.reduce((s, v) => s + v, 0) / c.length;
+        const shift = meanNat - meanRel;
+        for (let i = 0; i < c.length; i++) {
+          const nx = rel[i] + shift;
+          if (Math.abs(nx - c[i].x) > 0.1) changed = true;
+          c[i].x = nx;
+        }
+      }
+      if (!changed) break;
+    }
+
+    items.forEach(it => {
+      const dot = document.createElement('span');
+      dot.className = 'tl-tick tl-tick-' + it.cat + (it.major ? ' major' : '');
+      dot.style.left = it.leftPct + '%';
+      const off = it.x - it.xNat;
+      if (Math.abs(off) > 0.1) {
+        dot.style.transform = 'translate(calc(-50% + ' + off.toFixed(1) + 'px), -50%)';
+      }
+      dot.innerHTML = renderTick(it.cat, it.major);
+      el.appendChild(dot);
+    });
+  }
+
+  function placeAll(){
+    place('lane-anth', anth);
+    place('lane-oa', oa);
+    place('lane-goog', goog);
+    // Update the legend preview symbols too.
+    ['model','app','feature'].forEach(c => {
+      const lg = document.querySelector('[data-legend="'+c+'"] .lg-sym');
+      if (lg) lg.innerHTML = renderTick(c, false);
+    });
+  }
+
+  // Expose for Tweaks.
+  window.__timeline = { SHAPES, TIMELINE_SYMBOLS, placeAll };
+
+  setTimeout(placeAll, 100);
+
+  // ---------- Tweaks integration ----------
+  const panelHtml = `
+    <div id="tweaks-panel" style="
+      position:fixed;right:20px;bottom:20px;z-index:99999;
+      width:320px;background:rgba(23,22,20,0.96);color:#f4f0e6;
+      border:1px solid rgba(255,255,255,0.08);border-radius:12px;
+      padding:16px 18px;font-family:Inter,system-ui,sans-serif;
+      box-shadow:0 18px 60px rgba(0,0,0,0.4);display:none;
+      backdrop-filter:blur(8px);
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.6;">Tweaks</div>
+        <div style="font-size:11px;opacity:0.45;">Timeline symbols</div>
+      </div>
+      <div style="font-size:13px;opacity:0.75;line-height:1.4;margin-bottom:12px;">
+        Choose a symbol for each category on slide 5 (The landscape).
+      </div>
+      <div data-row="model"   style="margin-bottom:8px;"></div>
+      <div data-row="app"     style="margin-bottom:8px;"></div>
+      <div data-row="feature" style="margin-bottom:2px;"></div>
+    </div>
+  `;
+
+  function buildRow(host, cat, label){
+    const wrap = host.querySelector('[data-row="'+cat+'"]');
+    wrap.innerHTML = '<div style="font-size:12px;opacity:0.7;margin-bottom:4px;">'+label+'</div>'
+      + '<div class="opts" style="display:flex;gap:6px;flex-wrap:wrap;"></div>';
+    const opts = wrap.querySelector('.opts');
+    Object.keys(SHAPES).forEach(name => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.shape = name;
+      b.style.cssText = 'background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 8px;cursor:pointer;color:#f4f0e6;display:flex;align-items:center;justify-content:center;width:38px;height:34px;';
+      b.innerHTML = '<svg viewBox="-12 -12 24 24" width="18" height="18" fill="currentColor">'+SHAPES[name](18)+'</svg>';
+      b.addEventListener('click', () => {
+        TIMELINE_SYMBOLS[cat] = name;
+        try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: Object.fromEntries(Object.entries(TIMELINE_SYMBOLS).map(([k,v])=>[k,v])) }, '*'); } catch(e){}
+        placeAll();
+        syncSelected(host);
+      });
+      opts.appendChild(b);
+    });
+  }
+  function syncSelected(host){
+    host.querySelectorAll('[data-row]').forEach(row => {
+      const cat = row.dataset.row;
+      const current = TIMELINE_SYMBOLS[cat];
+      row.querySelectorAll('button').forEach(b => {
+        const on = b.dataset.shape === current;
+        b.style.borderColor = on ? 'rgba(217,119,87,0.9)' : 'rgba(255,255,255,0.12)';
+        b.style.background  = on ? 'rgba(217,119,87,0.18)' : 'rgba(255,255,255,0.06)';
+      });
+    });
+  }
+
+  // Register the Tweaks listener FIRST, then announce availability.
+  window.addEventListener('message', (e) => {
+    const t = e.data && e.data.type;
+    if (t === '__activate_edit_mode') {
+      let panel = document.getElementById('tweaks-panel');
+      if (!panel) {
+        const host = document.createElement('div');
+        host.innerHTML = panelHtml;
+        document.body.appendChild(host.firstElementChild);
+        panel = document.getElementById('tweaks-panel');
+        buildRow(panel, 'model',   'Models');
+        buildRow(panel, 'app',     'Applications / UIs');
+        buildRow(panel, 'feature', 'Features');
+        syncSelected(panel);
+      }
+      panel.style.display = 'block';
+    } else if (t === '__deactivate_edit_mode') {
+      const panel = document.getElementById('tweaks-panel');
+      if (panel) panel.style.display = 'none';
+    }
+  });
+  try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch(e){}
+})();
+</script>
+
+</body>
+</html>

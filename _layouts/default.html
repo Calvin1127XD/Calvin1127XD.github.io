@@ -2,20 +2,22 @@
 # layout: compress
 ---
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
     <head>
         <meta charset="utf-8">
         <meta content="width=device-width, initial-scale=1" name="viewport">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://use.fontawesome.com; font-src 'self' https://use.fontawesome.com; img-src 'self' data: https://www.google-analytics.com; connect-src 'self' https://www.google-analytics.com https://www.googletagmanager.com https://analytics.google.com https://stats.g.doubleclick.net; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+        <meta name="referrer" content="strict-origin-when-cross-origin">
         <meta name="google-site-verification" content="4u4Y1sSh6v3NCSOimIe3h1wSW3os9duYVUEquys8epE"/>
         <link rel="stylesheet" href="{{site.baseurl}}/assets/css/main.css?v={{ site.time | date: '%s' }}">
         <link rel="stylesheet" href="{{site.baseurl}}/assets/css/academicons.min.css"/>
+        <link rel="stylesheet"
+              href="https://use.fontawesome.com/releases/v5.11.0/css/all.css"
+              integrity="sha384-XLYVh3ZsmvjnjODXg/qvDYjcINmPLORACP+Tk6qA3jNLbStl84PzAeEz2Su02511"
+              crossorigin="anonymous">
 
         {% seo %}
-
-
-        <!-- Load fontawesome here for faster loadtimes: https://stackoverflow.com/a/35880730/9523246 -->
-        <script type="text/javascript"> (function() { var css = document.createElement('link'); css.href = 'https://use.fontawesome.com/releases/v5.11.0/css/all.css'; css.rel = 'stylesheet'; css.type = 'text/css'; document.getElementsByTagName('head')[0].appendChild(css); })(); </script>
 
     </head>
 

@@ -9,7 +9,7 @@ published: true
 
 ### Full CV (PDF)
 
-- [Download CV - February 3, 2026]({{site.baseurl}}/files/CV/CalvinCV_Feb3_2026.pdf)
+- [Download CV - May 25, 2026]({{site.baseurl}}/files/CV/CalvinCV_May25_2026.pdf)
 
 ### Education
 
@@ -36,6 +36,7 @@ published: true
 
 ### Selected Honors
 
+- Spike Tickle STEM Endowed Fellowship, University of Tennessee, Knoxville (2026)
 - Dawn and Lawrence Taylor Graduate Fellowship (2025)
 - Dorothea and Edgar D. Eaves Graduate Student Teaching Award - Senior (2025)
 - Department of Mathematics Fellowship, UTK (2022)

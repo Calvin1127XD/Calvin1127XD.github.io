@@ -50,6 +50,7 @@ published: true
 
 ### Selected Awards
 
+- Spike Tickle STEM Endowed Fellowship (UTK, 2026)
 - Dawn and Lawrence Taylor Graduate Fellowship (UTK, 2025)
 - Dorothea and Edgar D. Eaves Graduate Student Teaching Award - Senior (UTK, 2025)
 - Department of Mathematics Fellowship (UTK, 2022)

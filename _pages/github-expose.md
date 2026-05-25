@@ -9,6 +9,19 @@ published: true
 
 A few repositories that show how I combine mathematical modeling, programming, and modern LLM-assisted research workflows.
 
+### Series Dash
+
+<div class="repo-two-col">
+  <div class="repo-card">
+    <p><strong>Repository:</strong> <a href="https://github.com/Calvin1127XD/series-dash">Calvin1127XD/series-dash</a></p>
+    <p>An interactive Calc II teaching game that gamifies series-test practice and helps students visually decide which convergence test fits each series.</p>
+    <p><a href="https://github.com/Calvin1127XD/series-dash">Open repository</a> · <a href="https://calvin1127xd.github.io/series-dash/">Play the game</a></p>
+  </div>
+  <div class="repo-preview">
+    <img src="{{site.baseurl}}/assets/images/series_dash_gameplay.jpg" alt="Series Dash gameplay screen with a series prompt, timer, lives, and convergence test choices">
+  </div>
+</div>
+
 ### DiffuseDomainHelmholtz
 
 <div class="repo-two-col">

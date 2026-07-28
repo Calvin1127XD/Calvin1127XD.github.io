@@ -9,7 +9,7 @@ published: true
 
 ### Full CV (PDF)
 
-- [Download CV - May 25, 2026]({{site.baseurl}}/files/CV/CalvinCV_May25_2026.pdf)
+- [Download CV - July 28, 2026]({{site.baseurl}}/files/CV/CalvinCV_July28_2026.pdf)
 
 ### Education
 

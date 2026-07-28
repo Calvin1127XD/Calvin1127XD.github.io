@@ -21,6 +21,10 @@ published: true
 
 - S. M. Wise, A. J. Salgado, and **M. H. Wong**, *Multigrid Methods: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems*, De Gruyter, 2025. ISBN: 978-3-11-135488-0. [Publisher page](https://www.degruyterbrill.com/document/isbn/9783111354880/html)
 
+#### Preprints
+
+- **M. H. Wong**, *The symmetric V-cycle can diverge under the multigrid axioms for cell-centred discretisations*, arXiv:2607.23391 [math.NA], 2026. [arXiv](https://arxiv.org/abs/2607.23391)
+
 #### Journal Articles
 
 1. T. Luong, T. Mengesha, S. M. Wise, and **M. H. Wong**, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions II: Gamma-Convergence*, **International Journal of Numerical Analysis and Modeling**, 22(5):728-744, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1031)

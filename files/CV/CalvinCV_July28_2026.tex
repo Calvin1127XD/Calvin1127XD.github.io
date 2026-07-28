@@ -1,0 +1,360 @@
+\documentclass[11pt,letterpaper]{report}
+
+\usepackage[T1]{fontenc} % output T1 font encoding (8-bit) for accented characters as single glyph
+\usepackage[strict,autostyle]{csquotes} % smart and nestable quote marks
+\usepackage[USenglish]{babel} % regionalize hyphens, quote marks, etc automatically
+\usepackage{microtype}% improve text appearance with kerning, etc
+\usepackage{datetime} % enable formatting of date output
+\usepackage{tabto}    % make nice tabbing
+\usepackage{hyperref} % enable hyperlinks and pdf metadata
+\usepackage{geometry} % manually set page margins
+\usepackage{enumitem} % enumerate with [resume] option
+\usepackage{titlesec} % allow custom section fonts
+\usepackage{setspace} % custom line spacing
+\usepackage{footnote}
+
+\setlist[enumerate]{label=\textbullet}
+
+% what is your name?
+\newcommand{\myname}{Calvin Wong}
+
+% select default typefaces
+\usepackage{ebgaramond} % document's serif typeface
+\usepackage{tgheros}    % document's sans serif typeface
+
+% how far to tab for list items with left-aligned date: different fonts need different widths
+\newcommand{\listtabwidth}{2cm}
+
+% define font to use as document's title
+\newcommand{\namefont}[1]{{\normalfont\bfseries\Huge{#1}}}
+
+% set section heading fonts and before/after spacing
+\SetTracking{encoding=*, family=\sfdefault}{30} % increase sans serif headings tracking
+\titleformat{\section}{\lsstyle\sffamily\small\bfseries\uppercase}{}{}{}{}
+\titlespacing{\section}{0pt}{30pt plus 4pt minus 4pt}{8pt plus 2pt minus 2pt}
+
+% set subsection heading fonts and before/after spacing
+\titleformat{\subsection}{\lsstyle\sffamily\footnotesize\bfseries}{}{}{}{}
+\titlespacing{\subsection}{0pt}{16pt plus 4pt minus 4pt}{4pt plus 2pt minus 2pt}
+
+% set page margins (assumes letter paper)
+\geometry{body={6.5in, 9.0in},
+    left=1.0in,
+    top=1.0in}
+
+% prevent paragraph indentation
+\setlength\parindent{0em}
+
+% set line spacing
+\setstretch{0.9}
+
+% define space between list items
+\newcommand{\listitemspace}{0.5em}
+
+% make unordered lists without bullets and use compact spacing
+\renewenvironment{itemize}
+{\begin{list}{}{\setlength{\leftmargin}{0em}
+                \setlength{\parskip}{0em}
+                \setlength{\itemsep}{\listitemspace}
+                \setlength{\parsep}{\listitemspace}}}
+{\end{list}}
+
+% make tabbed lists so content is left-aligned next to years
+\TabPositions{\listtabwidth}
+\newlist{tablist}{description}{3}
+\setlist[tablist]{leftmargin=\listtabwidth,
+    labelindent=0em,
+    topsep=0em,
+    partopsep=0em,
+    itemsep=\listitemspace,
+    parsep=\listitemspace,
+    font=\normalfont}
+
+% print only the month and year when using \today
+\newdateformat{monthyeardate}{\monthname[\THEMONTH] \THEYEAR}
+
+% define hyperlink appearance and metadata for pdf properties
+\hypersetup{
+    colorlinks  = true,
+    urlcolor    = black,
+    citecolor   = black,
+    linkcolor   = black,
+    pdfauthor   = {\myname},
+    pdfkeywords = {Mathematics, Computational and Applied Mathematics, Imaging, Numerical Analysis, Numerical PDE, Mathematical Biology, Programming, Coding, Differential Geometry, Quasiconformal Geometry, Machine Learning},
+    pdftitle    = {\myname: Curriculum Vitae},
+    pdfsubject  = {Curriculum Vitae},
+    pdfpagemode = UseNone
+}
+
+\begin{document}
+    \raggedright{}
+
+    % display your name as the document title
+    \namefont{\myname}
+
+    % affiliation and contact info blocks
+    \vspace{1em}
+    \begin{minipage}[t]{0.700\textwidth}
+        % current primary affiliation, left-aligned
+        Department of Mathematics \\
+        College of Arts and Sciences \\
+        University of Tennessee, Knoxville
+    \end{minipage}
+    \begin{minipage}[t]{0.295\textwidth}
+        % contact info details, right-aligned
+        \flushright{}
+        \href{mailto:mwong4@utk.edu}{mwong4@utk.edu} \\
+        +1 865 437 4946 \\
+    \end{minipage}
+
+
+    \section*{Education}
+
+    \begin{tablist}
+
+        \item[Ph.D.] \tab{} Mathematics, University of Tennessee Knoxville, Expected 2027
+        \item[M.S.] \tab{} Mathematics, University of Tennessee Knoxville, 2024
+        \item[B.S.]  \tab{} Mathematics (Computational and Applied Mathematics, Enrichment Mathematics),\\
+       \,First Class Honour, The Chinese University of Hong Kong, 2022
+
+    \end{tablist}
+
+
+
+    \section*{Appointments}
+
+    \begin{tablist}
+
+    \item[2025]   \tab{}Oak Ridge National Lab \\
+                              Summer Internship Scientist\\
+
+    \item[2024]   \tab{}Oak Ridge National Lab \\
+                              Summer Internship Scientist\\
+
+        \item[2022--]   \tab{}University of Tennessee, Knoxville \\
+                              Graduate Teaching Assistant, 2022 -- 2023\\
+                              Graduate Teaching Associate, 2023 -- \\
+                              Graduate Research Assistant, 2023 --\\
+
+        \item[2021--2022]   \tab{}The Chinese University of Hong Kong \\
+                              Undergraduate Researcher, Undergraduate Research Opportunity Program, 2021 -- 2022  \\
+
+    \end{tablist}
+
+
+
+    \section*{Research Areas}
+
+    \begin{itemize}
+
+        \item Numerical Methods and Analysis, Numerical PDE and Modelling
+        \item Diffuse Domain Methods, Multigrid Methods
+        \item Graph Neural Network, Reinforcement Learning, Statistical Mechanics
+        \item Mathematical (Medical) Imaging, Computational Differential and Quasiconformal Geometry
+
+
+    \end{itemize}
+
+    \section*{Research Experience}
+
+    \begin{tablist}
+
+    \item[2024-] Combinatorical Optimization with Graph Convolutional Network and Deep Reinforcement Learning
+        \begin{enumerate}
+            \item Supervised by Prof. Cory Hauck,\\
+            Oak Ridge National Lab (ORNL) and University of Tennessee, Knoxville
+            \item Investigating on the design and optimization of synthesized crystal via graph convolutional network and deep reinforcement learning
+            \item Reviewing related research on nuclear power plant assembly and coding out the simulations and networks
+        \end{enumerate}
+        \vspace{1cm}
+
+        \item[2022-] Diffuse Domain Method on Solving Poisson PDE with Finite Difference and Finite Element Method
+        \begin{enumerate}
+            \item Co-supervised by Prof. Steven Wise and Prof. Tadele Mengesha, University of Tennessee Knoxville
+            \item Investigating on the behavior of the solution inside and outside a domain with complex geometry
+            \item Studying the asymptotic behavior of the numerical solution and Gamma Convergence of the method
+        \end{enumerate}
+        \vspace{1cm}
+        \item[2022] High-dimensional Numerical Integration Problems using Multilevel Dimensional Iteration Methods
+
+        \begin{enumerate}
+            \item NSF funded summer research supervised by Prof. Feng Xiaobing, University of Tennessee Knoxville
+            \item Performed dimension reduction on high dimensional integration problem via co-area formula and Lebesgue measure
+            \item Conducted numerical experiment on the proposed methods
+        \end{enumerate}
+        \vspace{1cm}
+        \item[2021] Detecting Defects of Pavement with Mathematical Imaging
+        \begin{enumerate}
+            \item Supervised by Prof. Ronald Lui, The Chinese University of Hong Kong
+            \item Detecting potholes by analysing the curvatures and Beltrami coefficient at each point of the pavement
+            \item Detecting cracks by analysing the high frequency component of the Fourier coefficients
+            \item Image denoising with Total Variational Method and Gaussian Smoothing
+            \item Led and coordinated a team of 6 undergraduate and full time researchers
+        \end{enumerate}
+        \vspace{1cm}
+        \item[2021] Developing Classification Model on Childhood Obstructive Sleeping Apnea with Machine Learning,\\ Differential Geometry and Quasiconformal Geometry
+        \begin{enumerate}
+            \item Supervised by Prof. Ronald Lui, The Chinese University of Hong Kong
+            \item Led and coordinated a team of 3 undergraduate researchers
+            \item Developed a classification model for early-stage diagnosis of Childhood Obstructive Sleep Apnea by reconstructing 3D face models from 2D images taken by smartphone, achieving high diagnostic accuracy
+            \item Presented research findings to an academic audience of 100, fostering interactive Q\&A sessions
+
+        \end{enumerate}
+        \vspace{1cm}
+
+        \item[2019] Mathematical Proof Judge with Natural Language Processing
+        \begin{enumerate}
+            \item Supervised by Dr. Cheung Leung Fu and Dr. Chan Ping Shun,\\
+            The Chinese University of Hong Kong
+            \item Carried research on implementations of AI-driven math proof judging systems
+            \item Presented basic algorithms and prototype to judge some basic standardized problems
+
+        \end{enumerate}
+
+    \end{tablist}
+
+
+
+    \section*{Publications}
+
+\subsection*{Books}
+
+\begin{tablist}
+    \item[2025] \tab{}S.\ M.\ Wise, A.\ J.\ Salgado, and M.\ H.\ Wong.
+    \enquote{\textit{Multigrid Methods}: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems.}
+    De Gruyter Textbook, De Gruyter Brill, Berlin, forthcoming 2025.
+    ISBN 978-3-11-135488-0.\\
+    \url{https://www.degruyterbrill.com/document/isbn/9783111354880/html}
+\end{tablist}
+
+\subsection*{Preprints}
+
+\begin{tablist}
+    \item[2026] \tab{}M.\ H.\ Wong.
+    \enquote{The symmetric V-cycle can diverge under the multigrid axioms for cell-centred discretisations.}
+    arXiv:2607.23391 [math.NA], 2026.\\
+    \url{https://arxiv.org/abs/2607.23391}
+\end{tablist}
+
+\subsection*{Journal Articles}
+
+\begin{tablist}
+    \item[2025] \tab{}T.\ Luong, T.\ Mengesha, S.\ M.\ Wise, and M.\ H.\ Wong.
+    \enquote{A Diffuse Domain Approximation with Transmission-Type Boundary Conditions II: Gamma--Convergence.}
+    \textit{International Journal of Numerical Analysis and Modeling}, 22(5):\,728--744, 2025.
+    \url{https://doi.org/10.4208/ijnam2025-1031}
+
+    \item[2025] \tab{}T.\ Luong, T.\ Mengesha, S.\ M.\ Wise, and M.\ H.\ Wong.
+    \enquote{A Diffuse Domain Approximation with Transmission-Type Boundary Conditions I: Asymptotic Analysis and Numerics.}
+    \textit{International Journal of Numerical Analysis and Modeling}, 22(5):\,694--727, 2025.
+    \url{https://doi.org/10.4208/ijnam2025-1030}
+
+    \item[2023] \tab{}M.-H.\ Wong, M.\ Li, K.-M.\ Tam, H.-M.\ Yuen, C.-T.\ Au, K.\ C.-C.\ Chan, A.\ M.\ Li, and L.-M.\ Lui.
+    \enquote{A Quasiconformal-Based Geometric Model for Craniofacial Analysis and Its Application.}
+    \textit{Axioms}, 12(4):\,393, 2023.
+    \url{https://doi.org/10.3390/axioms12040393}
+\end{tablist}
+
+
+    \subsection*{Campus Talks}
+
+    \begin{tablist}
+
+
+        \item[2022] \tab{}\enquote{Preliminary Diagnosis of Childhood Obstructive Sleep Apnea using 2D Images by Quasi-Conformal Geometry.} Undergraduate Research Opportunity Program 2021 Workshop. The Chinese University of Hong Kong
+
+
+
+    \end{tablist}
+
+    \section*{Conference}
+
+  \begin{tablist}
+
+    \item[2025] \tab{} UARK--SIAM--CSS 2025 Conference, University of Arkansas, Fayetteville, AR \\
+    \, \textit{Invited Talk: ``Gamma-Convergence and Asymptotic Analysis for a Diffuse Domain Problem with Transmission Boundary Conditions: Part 2, Numerical Confirmation''}
+
+    \item[2025] \tab{} SIAM SEAS 2025, March 2025 \\
+    \, \textit{Invited Talk: “Gamma-Convergence and Asymptotic Analysis for a Diffuse Domain Problem with Transmission Boundary Conditions: Part 2, Numerical Confirmation”}
+
+    \item[2024] \tab{} Workshop on Theoretical and Numerical Challenges in Materials Science,\\
+    \, The University of Alabama
+
+
+
+\end{tablist}
+
+
+
+
+
+    \section*{Courses Taught}
+
+    \subsection*{University of Tennessee, Knoxville}
+
+    \begin{tablist}
+        \item[2026] \tab{} Calculus II (as teaching assistant)
+        \item[2025] \tab{} Finite Mathematics (as teaching assistant)
+        \item[2025] \tab{} Mathematics for the life sciences (as instructor of record)
+        \item[2024] \tab{} ODE I (as teaching assistant)
+        \item[2024] \tab{} Multigrid Method (as teaching assistant)
+        \item[2024] \tab{} Calculus II (as teaching assistant)
+        \item[2023] \tab{} Basic Calculus (as instructor of record)
+        \item[2023] \tab{} Finite Mathematics (as teaching assistant)
+        \item[2022] \tab{} College Algebra (as teaching assistant)
+
+
+    \end{tablist}
+
+    \subsection*{The Chinese University of Hong Kong}
+
+    \begin{tablist}
+
+        \item[2022] \tab{} Science Academy for Young Talent: A Trilogy of Hands-on Machine Learning (as teaching assistant)
+        \item[2021] \tab{} Enrichment Programme for Young Mathematics Talent: Introduction to Discrete Mathematics\\ (as teaching assistant)
+        \item[2020] \tab{} Enrichment Programme for Young Mathematics Talent: Towards Differential Geometry\\ (as teaching assistant)
+        \item[2019] \tab{} Enrichment Programme for Young Mathematics Talent: Towards Modern Algebra\\ (as teaching assistant)
+
+    \end{tablist}
+
+     \section*{Grants and Awards}
+
+    \subsection*{Awards, Scholarships and Fellowship}
+
+    \begin{tablist}
+        \item[2026] \tab{} Spike Tickle STEM Endowed Fellowship, University of Tennessee, Knoxville
+        \item[2025] \tab{} Dawn and Lawrence Taylor Graduate Fellowship, University of Tennessee, Knoxville
+        \item[2025] \tab{} Dorothea \& Edgar D. Eaves Graduate Student Teaching Award: Senior,\\
+        \  University of Tennessee, Knoxville
+        \item[2022] \tab{} Department of Mathematics Fellowship, University of Tennessee, Knoxville
+        \item[2022] \tab{} Undergraduate Research Opportunity Program Gold Award, The Chinese University of Hong Kong
+        \item[2022] \tab{} Chung Chi College Departmental Prize - Enrichment Mathematics,\\
+        \ The Chinese University of Hong Kong
+        \item[2021] \tab{} Chung Chi College Scholarship for Excellence, The Chinese University of Hong Kong
+        \item[2019] \tab{} Dr Chao Yung Chi-hsing Scholarship in Mathematics 2019/20
+
+        \item[2017-2022] \tab{} Faculty of Science Dean's List, The Chinese University of Hong Kong (5 time awardee)
+        \item[2017-2022] \tab{} Chung Chi College Kunkle and Pommerenke Full Tuition Scholarship,\\
+        \ The Chinese University of Hong Kong (3 time awardee)
+        \item[2017-2022] \tab{} Undergraduate Mathematics Scholarship, Department of Mathematics,\\
+        \ The Chinese University of Hong Kong (5 time awardee)
+
+
+
+    \end{tablist}
+
+
+
+
+
+
+
+
+
+    % display today's date as Month Year after a vertical space below the end of the text
+    \begin{center}
+        \vfill
+        Updated \monthyeardate\today
+    \end{center}
+
+\end{document}

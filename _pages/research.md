@@ -23,6 +23,7 @@ published: true
 
 #### Preprints
 
+- T. Luong, T. Mengesha, K. Stinson, S. M. Wise, and **M. H. Wong**, *The α-Limit Problem: Convergence of a Linear Degenerate Interface Transmission Problem*, arXiv:2609.01237 [math.AP], 2026. [arXiv](https://arxiv.org/abs/2609.01237)
 - **M. H. Wong**, *The symmetric V-cycle can diverge under the multigrid axioms for cell-centred discretisations*, arXiv:2607.23391 [math.NA], 2026. [arXiv](https://arxiv.org/abs/2607.23391)
 
 #### Journal Articles

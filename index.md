@@ -11,15 +11,16 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <section class="hero" id="about">
 <p class="eyebrow">PhD student in Mathematics</p>
 <h1>Calvin Wong</h1>
-<p class="hero-lead">I am a PhD student in Mathematics at the University of Tennessee, Knoxville (expected graduation: 2027). I work on numerical methods for partial differential equations.</p>
+<p class="hero-lead">I am a PhD student in Mathematics at the University of Tennessee, Knoxville, expecting to graduate in 2027. My interests span applied mathematics, scientific machine learning, and agentic coding, with current work on numerical PDEs, multigrid methods, and learning-based optimization.</p>
 <div class="actions"><a class="button primary" href="{{ '/research/' | relative_url }}">Research <span aria-hidden="true">→</span></a><a class="button secondary" href="{{ '/files/CV/CalvinCV_October1_2026.pdf' | relative_url }}">View CV <span aria-hidden="true">↗</span></a></div>
-<div class="research-visual" id="current-focus">
-<figure><img src="{{ '/assets/images/diffuse_domain_solution.png' | relative_url }}" alt="Surface plot of a diffuse-domain solution on a star-shaped domain" width="1280" height="900"><figcaption>Diffuse-domain Helmholtz project · <a href="https://github.com/Calvin1127XD/DiffuseDomainHelmholtz">MATLAB code ↗</a></figcaption></figure>
-<div>
+<div class="research-visual bsam-highlight" id="current-focus">
+<div class="bsam-highlight-intro">
 <p class="eyebrow">Current focus</p>
-<h2>Diffuse domain methods</h2>
-<p>I study diffuse domain approximations for Poisson problems with transmission-type boundary conditions.</p>
-<p class="quiet">The work includes asymptotic analysis, numerical experiments, and Gamma-convergence.</p></div></div></section>
+<h2>Block-structured adaptive multigrid</h2>
+<p>BSAM in MATLAB provides solvers for two-dimensional elliptic, parabolic, and diffuse-domain problems, with refinement concentrated where the solution or geometry needs it.</p>
+<a class="text-link" href="https://github.com/Calvin1127XD/BSAM-in-MATLAB">BSAM in MATLAB <span aria-hidden="true">↗</span></a></div>
+{% include bsam-gallery.html %}
+</div></section>
 <section class="section" id="research-interests">
 <div class="section-heading">
 <div>
@@ -41,24 +42,28 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <div>
 <p class="eyebrow">Publications</p>
 <h2>Book and recent preprints</h2></div><a class="text-link" href="{{ '/research/' | relative_url }}#publications">All publications <span aria-hidden="true">→</span></a></div>
-<div class="selected-layout">
-<figure class="book-cover"><img src="{{ '/assets/images/MultigridMethods.jpeg' | relative_url }}" alt="Cover of Multigrid Methods by Wise, Salgado, and Wong" width="264" height="400"><figcaption>De Gruyter · 2025</figcaption></figure>
-<div>
-<article class="publication">
+<div class="publication-previews">
+<article class="publication publication-preview">
+<figure class="publication-thumbnail"><a href="https://www.degruyterbrill.com/document/isbn/9783111354880/html"><img src="{{ '/assets/images/MultigridMethods.jpeg' | relative_url }}" alt="Cover of Multigrid Methods by Wise, Salgado, and Wong" width="264" height="400" loading="lazy"></a><figcaption>De Gruyter · 2025</figcaption></figure>
+<div class="publication-copy">
 <p class="eyebrow">Book · 2025</p>
 <h3><a href="https://www.degruyterbrill.com/document/isbn/9783111354880/html">Multigrid Methods: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems</a></h3>
 <p class="authors">S. M. Wise, A. J. Salgado, and M. H. Wong</p>
-<p class="venue">De Gruyter · ISBN 978-3-11-135488-0</p><a class="text-link" href="https://www.degruyterbrill.com/document/isbn/9783111354880/html">Publisher <span aria-hidden="true">↗</span></a></article>
-<article class="publication">
+<p class="venue">De Gruyter · ISBN 978-3-11-135488-0</p><a class="text-link" href="https://www.degruyterbrill.com/document/isbn/9783111354880/html">Publisher <span aria-hidden="true">↗</span></a></div></article>
+<article class="publication publication-preview">
+<figure class="publication-thumbnail"><a href="https://arxiv.org/abs/2609.01237"><img src="{{ '/assets/images/preprints/alpha-limit-fig-8-1.png' | relative_url }}" alt="Figure 8.1: limiting solution and finite-difference solutions for alpha 0.2, 0.5, and 0.8, with a zoom near the interface" width="1500" height="626" loading="lazy"></a><figcaption>α-limit preprint · Fig. 8.1</figcaption></figure>
+<div class="publication-copy">
 <p class="eyebrow">Preprint · 2026</p>
 <h3><a href="https://arxiv.org/abs/2609.01237">The α-Limit Problem: Convergence of a Linear Degenerate Interface Transmission Problem</a></h3>
 <p class="authors">T. Luong, T. Mengesha, K. Stinson, S. M. Wise, and M. H. Wong</p>
-<p class="venue">arXiv:2609.01237 [math.AP]</p><a class="text-link" href="https://arxiv.org/abs/2609.01237">arXiv <span aria-hidden="true">↗</span></a></article>
-<article class="publication">
+<p class="venue">arXiv:2609.01237 [math.AP]</p><a class="text-link" href="https://arxiv.org/abs/2609.01237">arXiv <span aria-hidden="true">↗</span></a></div></article>
+<article class="publication publication-preview">
+<figure class="publication-thumbnail"><a href="https://arxiv.org/abs/2607.23391"><img src="{{ '/assets/images/preprints/v-cycle-fig-5-4.png' | relative_url }}" alt="Figure 5.4: V-cycle iterates depart from the manufactured solution while W-cycle iterates approach it in the plotted example" width="1500" height="527" loading="lazy"></a><figcaption>V-cycle preprint · Fig. 5.4</figcaption></figure>
+<div class="publication-copy">
 <p class="eyebrow">Preprint · 2026</p>
 <h3><a href="https://arxiv.org/abs/2607.23391">The symmetric V-cycle can diverge under the multigrid axioms for cell-centred discretisations</a></h3>
 <p class="authors">M. H. Wong</p>
-<p class="venue">arXiv:2607.23391 [math.NA]</p><a class="text-link" href="https://arxiv.org/abs/2607.23391">arXiv <span aria-hidden="true">↗</span></a></article></div></div></section>
+<p class="venue">arXiv:2607.23391 [math.NA]</p><a class="text-link" href="https://arxiv.org/abs/2607.23391">arXiv <span aria-hidden="true">↗</span></a></div></article></div></section>
 <section class="context section">
 <div>
 <p class="eyebrow">Internships</p>

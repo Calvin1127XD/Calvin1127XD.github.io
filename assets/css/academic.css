@@ -37,3 +37,31 @@
  .content-page blockquote{padding:18px}
  .selected-layout{grid-template-columns:1fr}
 }
+
+/* Shared figures keep their original labels and open at full resolution. */
+.research-visual.bsam-highlight{grid-template-columns:1fr;gap:24px}
+.research-visual .bsam-highlight-intro{padding:0;max-width:780px}
+.research-visual .bsam-highlight-intro h2{max-width:700px}
+.research-visual .bsam-highlight-intro p:not(.eyebrow){margin-top:18px;margin-bottom:18px}
+.bsam-gallery{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;min-width:0}
+.bsam-gallery .bsam-overview{grid-column:1/-1}
+.bsam-gallery figure{min-width:0}
+.bsam-gallery figure>a{display:block;padding:8px;background:white;border:1px solid var(--line)}
+.research-visual .bsam-gallery img,.bsam-gallery img{width:100%;height:auto;aspect-ratio:auto;object-fit:contain}
+.research-visual .bsam-gallery figcaption,.bsam-gallery figcaption{font-size:12px}
+.bsam-repo .bsam-gallery{margin-top:26px}
+.publication-preview{display:grid;grid-template-columns:250px minmax(0,1fr);gap:28px;align-items:start}
+.publication-thumbnail{min-width:0}
+.publication-thumbnail>a{display:flex;align-items:center;justify-content:center;height:180px;padding:12px;border:1px solid var(--line);background:white}
+.publication-thumbnail img{max-width:100%;width:auto;height:auto;max-height:154px;object-fit:contain}
+.publication-thumbnail figcaption{font-size:12px}
+.publication-copy{min-width:0}
+@media(min-width:761px) and (max-width:1100px){.publication-preview{grid-template-columns:200px minmax(0,1fr);gap:24px}}
+@media(max-width:760px){
+ .bsam-gallery{grid-template-columns:1fr;gap:22px}
+ .research-visual.bsam-highlight{gap:22px}
+ .bsam-gallery figure>a{padding:6px}
+ .publication-preview{grid-template-columns:1fr;gap:18px}
+ .publication-thumbnail>a{height:190px}
+ .publication-thumbnail img{max-height:164px}
+}

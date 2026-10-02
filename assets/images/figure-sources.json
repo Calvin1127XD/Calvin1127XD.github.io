@@ -1,0 +1,52 @@
+{
+  "bsam": {
+    "repository": "https://github.com/Calvin1127XD/BSAM-in-MATLAB",
+    "commit": "66fea3ba143d48c1d4e0a59e89b9e4d7406e4ccd",
+    "figures": [
+      {
+        "asset": "bsam/starfish-overview.png",
+        "source_path": "figures/starfish-overview.png",
+        "source_blob": "68dcf3a1e60159d1758a87aaf53c6c0d9f55b04f",
+        "sha256": "1d8ccd570f5512d17f976000da60d148221f1b8aff7332cf13c3abbc6766f84e",
+        "transformation": "None; byte-identical to the public README figure."
+      },
+      {
+        "asset": "bsam/starfish-hierarchy.png",
+        "source_path": "figures/starfish-hierarchy.png",
+        "source_blob": "1419ba0244b3f7935e7615afdaf78ba06949d1ad",
+        "sha256": "39e367f59efd42d383d39515afc750b92b078db3f75d47c309d3d49cedd93ae4",
+        "transformation": "None; byte-identical to the public README figure."
+      },
+      {
+        "asset": "bsam/starfish-validation.png",
+        "source_path": "figures/starfish-validation.png",
+        "source_blob": "ee8185a7a62e8b5c8868164b6b87caf1bcf91203",
+        "sha256": "43b2f33bf49edd6d4876f9821b55c9b10d0183689d272f933cdc2c3e20298ef1",
+        "transformation": "None; byte-identical to the public README figure."
+      }
+    ],
+    "caption_note": "The reduction plot measures relative algebraic residual, not solution error. The adjacent comparison uses a uniform-grid numerical reference at fixed interface width."
+  },
+  "preprints": [
+    {
+      "asset": "preprints/alpha-limit-fig-8-1.png",
+      "paper": "https://arxiv.org/abs/2609.01237",
+      "source_archive": "https://arxiv.org/src/2609.01237v1",
+      "figure": "8.1",
+      "paper_pdf_page": 21,
+      "source_figure_pdf": "ComparisonAlphaSolutionsWithZoom.pdf",
+      "transformation": "Entire original figure PDF rasterized to PNG at 1500 pixels wide; no cropping or scientific changes.",
+      "sha256": "bdc87a30d59ec21e899fd4f48e57c2bd0121b4aa737307f77df81fda37656011"
+    },
+    {
+      "asset": "preprints/v-cycle-fig-5-4.png",
+      "paper": "https://arxiv.org/abs/2607.23391",
+      "source_archive": "https://arxiv.org/src/2607.23391v1",
+      "figure": "5.4",
+      "paper_pdf_page": 22,
+      "source_figure_pdf": "example3_mms_snapshots.pdf",
+      "transformation": "Entire original figure PDF rasterized to PNG at 1500 pixels wide; no cropping or scientific changes.",
+      "sha256": "db33d38bc3488e25030ed84c673187ace9293f0b7a6a56025886d6bb5d9a4977"
+    }
+  ]
+}

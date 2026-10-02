@@ -24,6 +24,16 @@ A few repositories that show how I combine mathematical modeling, programming, a
   </div>
 </div>
 
+## BSAM in MATLAB
+
+<div class="repo-card bsam-repo">
+  <p><strong>Repository:</strong> <a href="https://github.com/Calvin1127XD/BSAM-in-MATLAB">Calvin1127XD/BSAM-in-MATLAB</a></p>
+  <p>Block-structured adaptive multigrid for two-dimensional elliptic, parabolic, and diffuse-domain PDEs. The MATLAB solvers use cell-centered finite differences, adaptive FAS multigrid, and conservative coarse–fine flux corrections, with QC-ring and strict single-parent tree hierarchies.</p>
+  <p>The starfish transmission example below shows the solved field, the actual grid hierarchy, and algebraic residual reduction over V-cycles alongside a comparison with a uniform-grid numerical reference.</p>
+  <p><a href="https://github.com/Calvin1127XD/BSAM-in-MATLAB">Open repository and README</a></p>
+  {% include bsam-gallery.html %}
+</div>
+
 ## DiffuseDomain<wbr>Helmholtz
 
 <div class="repo-two-col">

@@ -11,12 +11,12 @@ content_class: content-page
 
 ## Full CV (PDF)
 
-- [Download CV - September 2, 2026]({{site.baseurl}}/files/CV/CalvinCV_September2_2026.pdf)
+- [Download CV - October 1, 2026]({{ '/files/CV/CalvinCV_October1_2026.pdf' | relative_url }})
 
 ## Education
 
 - **Ph.D. in Mathematics**, University of Tennessee, Knoxville (expected 2027)
-- **M.S. in Mathematics**, University of Tennessee, Knoxville (2024)
+- **M.S. in Mathematics**, University of Tennessee, Knoxville (May 18, 2024)
 - **B.S. in Mathematics** (Computational and Applied Mathematics; Enrichment Mathematics),
   The Chinese University of Hong Kong, First Class Honours (2022)
 

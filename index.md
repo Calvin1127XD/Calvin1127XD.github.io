@@ -12,7 +12,7 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <p class="eyebrow">PhD student in Mathematics</p>
 <h1>Calvin Wong</h1>
 <p class="hero-lead">I am a PhD student in Mathematics at the University of Tennessee, Knoxville (expected graduation: 2027). I work on numerical methods for partial differential equations.</p>
-<div class="actions"><a class="button primary" href="{{ '/research/' | relative_url }}">Research <span aria-hidden="true">→</span></a><a class="button secondary" href="{{ '/files/CV/CalvinCV_September2_2026.pdf' | relative_url }}">View CV <span aria-hidden="true">↗</span></a></div>
+<div class="actions"><a class="button primary" href="{{ '/research/' | relative_url }}">Research <span aria-hidden="true">→</span></a><a class="button secondary" href="{{ '/files/CV/CalvinCV_October1_2026.pdf' | relative_url }}">View CV <span aria-hidden="true">↗</span></a></div>
 <div class="research-visual" id="current-focus">
 <figure><img src="{{ '/assets/images/diffuse_domain_solution.png' | relative_url }}" alt="Surface plot of a diffuse-domain solution on a star-shaped domain" width="1280" height="900"><figcaption>Diffuse-domain Helmholtz project · <a href="https://github.com/Calvin1127XD/DiffuseDomainHelmholtz">MATLAB code ↗</a></figcaption></figure>
 <div>

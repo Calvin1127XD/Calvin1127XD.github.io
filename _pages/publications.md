@@ -1,11 +1,13 @@
 ---
-title:
+title: Publications
 layout: default
 permalink: /publications/
 published: true
+nav_key: publications
+content_class: content-page
 ---
 
-## Publications
+# Publications
 
 This content has been merged into the **Research** tab.
 

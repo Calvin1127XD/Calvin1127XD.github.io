@@ -1,0 +1,17 @@
+<footer class="site-footer" id="contact">
+  <div>
+    <strong>Calvin (Ming-Hei) Wong</strong>
+    <p>Department of Mathematics<br>University of Tennessee, Knoxville</p>
+  </div>
+  <div class="footer-links">
+    {% if site.email %}<a href="mailto:{{ site.email }}">Email</a>{% endif %}
+    {% if site.google_scholar %}<a href="https://scholar.google.com/citations?user={{ site.google_scholar }}">Google Scholar</a>{% endif %}
+    {% if site.orcid %}<a href="https://orcid.org/{{ site.orcid }}">ORCID</a>{% endif %}
+    {% if site.github %}<a href="https://github.com/{{ site.github }}">GitHub</a>{% endif %}
+    {% if site.linkedin %}<a href="https://www.linkedin.com/in/{{ site.linkedin }}">LinkedIn</a>{% endif %}
+    {% if site.researchgate %}<a href="https://www.researchgate.net/profile/{{ site.researchgate }}">ResearchGate</a>{% endif %}
+    {% if site.scopus %}<a href="https://www.scopus.com/authid/detail.uri?authorId={{ site.scopus }}">Scopus</a>{% endif %}
+    <a href="{{ '/projects/' | relative_url }}">Projects</a>
+  </div>
+  <p class="copyright">© {{ site.time | date: '%Y' }} {{ site.title }} · Built with Jekyll</p>
+</footer>

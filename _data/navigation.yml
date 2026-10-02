@@ -1,0 +1,28 @@
+- title: About
+  url: /
+  key: home
+- title: Research
+  url: /research/
+  key: research
+- title: Publications
+  url: /research/
+  key: publications
+  anchor: publications
+- title: Teaching
+  url: /teaching/
+  key: teaching
+- title: GitHub Exposé
+  url: /github-expose/
+  key: github
+- title: Agentic Coding
+  url: /talks/agentic-coding/
+  key: talk
+- title: Multigrid Methods
+  url: /MGBook/
+  key: book
+- title: TexMacgic
+  url: /texmacgic/
+  key: app
+- title: CV
+  url: /cv/
+  key: cv

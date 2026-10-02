@@ -1,24 +1,26 @@
 ---
-title:
+title: CV
 layout: default
 permalink: /cv/
 published: true
+nav_key: cv
+content_class: content-page
 ---
 
-## CV
+# CV
 
-### Full CV (PDF)
+## Full CV (PDF)
 
 - [Download CV - September 2, 2026]({{site.baseurl}}/files/CV/CalvinCV_September2_2026.pdf)
 
-### Education
+## Education
 
 - **Ph.D. in Mathematics**, University of Tennessee, Knoxville (expected 2027)
 - **M.S. in Mathematics**, University of Tennessee, Knoxville (2024)
 - **B.S. in Mathematics** (Computational and Applied Mathematics; Enrichment Mathematics),
   The Chinese University of Hong Kong, First Class Honours (2022)
 
-### Appointments
+## Appointments
 
 - **Oak Ridge National Laboratory**, Summer Internship Scientist (2024, 2025)
 - **University of Tennessee, Knoxville**
@@ -27,14 +29,14 @@ published: true
   - Graduate Research Assistant (2023-present)
 - **The Chinese University of Hong Kong**, Undergraduate Researcher (2021-2022)
 
-### Research Areas
+## Research Areas
 
 - Numerical methods and numerical PDE
 - Diffuse domain methods and multigrid methods
 - Graph neural networks and reinforcement learning
 - Mathematical imaging and quasiconformal geometry
 
-### Selected Honors
+## Selected Honors
 
 - Spike Tickle STEM Endowed Fellowship, University of Tennessee, Knoxville (2026)
 - Dawn and Lawrence Taylor Graduate Fellowship (2025)

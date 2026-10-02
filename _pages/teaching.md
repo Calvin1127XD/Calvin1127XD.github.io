@@ -1,15 +1,17 @@
 ---
-title:
+title: Teaching
 layout: default
 permalink: /teaching/
 published: true
+nav_key: teaching
+content_class: content-page
 ---
 
-## Teaching
+# Teaching
 
-### Teaching Experience
+## Teaching Experience
 
-#### University of Tennessee, Knoxville
+### University of Tennessee, Knoxville
 
 - **Instructor of Record**
   - Mathematics for the Life Sciences (2025)
@@ -22,7 +24,7 @@ published: true
   - Multigrid Method (2024)
   - College Algebra (2022)
 
-#### The Chinese University of Hong Kong
+### The Chinese University of Hong Kong
 
 - Science Academy for Young Talent: A Trilogy of Hands-on Machine Learning (2022)
 - Enrichment Programme for Young Mathematics Talent:
@@ -30,7 +32,7 @@ published: true
   - Towards Differential Geometry (2020)
   - Towards Modern Algebra (2019)
 
-### Student Feedback Highlights
+## Student Feedback Highlights
 
 > "Calvin was the best TA I've ever had. His weekly Friday office hours were amazing and always helpful."
 

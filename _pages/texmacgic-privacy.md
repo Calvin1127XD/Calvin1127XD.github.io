@@ -3,9 +3,11 @@ title: TexMacgic Privacy Policy
 layout: default
 permalink: /texmacgic/privacy/
 published: true
+nav_key: app
+content_class: content-page
 ---
 
-## TexMacgic Privacy Policy
+# TexMacgic Privacy Policy
 
 **Effective date: August 25, 2026**
 
@@ -17,7 +19,7 @@ documents or usage data. Editing, TeX compilation, Git tools, and Apple Intellig
 If you deliberately enable Power User mode and send a request, the separately installed AI provider
 you select may receive the content needed for that request under your account with that provider.
 
-### Information stored on your Mac
+## Information stored on your Mac
 
 TexMacgic works with files and folders that you select. It may store local settings, recent-project
 references and app-scoped security bookmarks, source history and recovery copies, preview caches,
@@ -25,7 +27,7 @@ templates, gallery items, project to-do entries, and agent chat history so reque
 work. These local stores are not uploaded to a TexMacgic server. Deleting local app data does not
 delete source documents that you saved elsewhere on your Mac.
 
-### Apple Intelligence
+## Apple Intelligence
 
 On a compatible Mac running macOS 27 or later, TexMacgic can use Apple's on-device Foundation Models
 for reviewed image-to-LaTeX transcription and focused writing tasks. Version 1.0 has no Private Cloud
@@ -33,7 +35,7 @@ Compute route. Screen capture occurs only after you choose **Capture Region** an
 permission; TexMacgic captures the selected region once. The reviewed image and generated text remain
 on the Mac unless you copy or insert the result.
 
-### Optional Power User providers
+## Optional Power User providers
 
 Power User mode can invoke Codex from OpenAI, Claude Code from Anthropic, or Antigravity from Google.
 TexMacgic does not bundle a provider account. You install and sign into the selected command-line tool
@@ -60,7 +62,7 @@ choices, and account linkage are governed by your provider settings and policy:
 [Google](https://policies.google.com/privacy). TexMacgic's developer does not operate those services
 or change your provider privacy choices.
 
-### Local MCP service and build tools
+## Local MCP service and build tools
 
 When enabled, the MCP control service listens only on `127.0.0.1` at a random port and requires random
 instance and turn credentials. It is intended only for an agent running on the same Mac. Tool content
@@ -72,7 +74,7 @@ by you. TexMacgic does not upload documents for compilation. Shell escape and cu
 user-enabled local automation; TexMacgic displays warnings and requires a trusted per-project opt-in.
 Those scripts may read files or use the network according to their own commands.
 
-### Analytics, advertising, tracking, and updates
+## Analytics, advertising, tracking, and updates
 
 TexMacgic contains no advertising SDK, product analytics, cross-app tracking, developer-operated
 crash reporter, or GitHub update client. Mac App Store updates are delivered by Apple. Apple may
@@ -80,14 +82,14 @@ process App Store downloads, purchases, or crash information under Apple's polic
 TexMacgic does not receive personal data from Apple for analytics or advertising. TexMacgic does not
 sell personal information.
 
-### Your choices and deletion
+## Your choices and deletion
 
 You can use AI Off, revoke provider permission, delete chat sessions, clear Recent projects, remove
 trusted-project decisions, and inspect or delete local history. Templates and user-added TikZ gallery
 items can also be removed. A provider may separately retain data under its account controls and
 policy; use that provider's privacy tools for those copies.
 
-### Security, children, and changes
+## Security, children, and changes
 
 The Store edition uses the macOS App Sandbox, security-scoped access to folders you select, explicit
 capability consent, project-containment checks, and authenticated loopback access. No storage or
@@ -95,7 +97,7 @@ transmission method is perfectly secure. TexMacgic is a general-purpose scientif
 productivity tool and is not directed to children. This policy may change when features or practices
 change; the effective date will be updated.
 
-### Contact
+## Contact
 
 Privacy questions or deletion requests may be sent to
 [mingheiwong501@gmail.com](mailto:mingheiwong501@gmail.com). For ordinary support or bug reports,

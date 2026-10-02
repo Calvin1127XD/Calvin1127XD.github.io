@@ -1,15 +1,17 @@
 ---
-title:
+title: GitHub Exposé
 layout: default
 permalink: /github-expose/
 published: true
+nav_key: github
+content_class: content-page
 ---
 
-## GitHub Exposé
+# GitHub Exposé
 
 A few repositories that show how I combine mathematical modeling, programming, and modern LLM-assisted research workflows.
 
-### Series Dash
+## Series Dash
 
 <div class="repo-two-col">
   <div class="repo-card">
@@ -22,7 +24,7 @@ A few repositories that show how I combine mathematical modeling, programming, a
   </div>
 </div>
 
-### DiffuseDomainHelmholtz
+## DiffuseDomain<wbr>Helmholtz
 
 <div class="repo-two-col">
   <div class="repo-card">
@@ -35,7 +37,7 @@ A few repositories that show how I combine mathematical modeling, programming, a
   </div>
 </div>
 
-### CatFourierEmailSignature
+## CatFourier<wbr>EmailSignature
 
 <div class="cat-fourier-two-col">
   <div class="repo-card">
@@ -48,7 +50,7 @@ A few repositories that show how I combine mathematical modeling, programming, a
   </div>
 </div>
 
-### Benford_Testing
+## Benford_Testing
 
 <div class="repo-card">
   <p><strong>Repository:</strong> <a href="https://github.com/Calvin1127XD/Benford_Testing">Calvin1127XD/Benford_Testing</a></p>

@@ -1,11 +1,13 @@
 ---
-title:
+title: Projects
 layout: default
 permalink: /projects/
 published: true
+nav_key: research
+content_class: content-page
 ---
 
-## Projects
+# Projects
 
 This content has been merged into the **Research** tab.
 

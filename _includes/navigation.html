@@ -1,9 +1,5 @@
-<div class="links top-nav scroll">
-        <a href="{{site.baseurl}}/">About</a>
-        <a href="{{site.baseurl}}/research/">Research</a>
-        <a href="{{site.baseurl}}/teaching/">Teaching</a>
-        <a href="{{site.baseurl}}/github-expose/">GitHub Exposé</a>
-        <a href="{{site.baseurl}}/talks/agentic-coding/">Agentic Coding</a>
-        <a href="{{site.baseurl}}/MGBook/">Multigrid Methods</a>
-        <a href="{{site.baseurl}}/cv/">CV</a>
-</div>
+<nav aria-label="Main">
+  {% for item in site.data.navigation %}
+    <a href="{{ item.url | relative_url }}{% if item.anchor %}#{{ item.anchor }}{% endif %}"{% if page.nav_key == item.key %} aria-current="page"{% endif %}>{{ item.title }}</a>
+  {% endfor %}
+</nav>

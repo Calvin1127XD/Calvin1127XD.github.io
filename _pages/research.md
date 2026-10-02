@@ -1,13 +1,15 @@
 ---
-title:
+title: Research
 layout: default
 permalink: /research/
 published: true
+nav_key: research
+content_class: content-page research-page
 ---
 
-## Research
+# Research
 
-### Areas
+## Areas
 
 - Numerical methods and analysis for PDE
 - Diffuse domain methods and transmission-type boundary conditions
@@ -15,31 +17,38 @@ published: true
 - Mathematical imaging and computational geometry
 - Scientific machine learning (GNN + reinforcement learning)
 
-### Selected Publications
+<span id="selected-publications"></span>
 
-#### Book
+## Selected Publications
+{: #publications }
+
+<div class="publication-list" markdown="1">
+
+### Book
 
 - S. M. Wise, A. J. Salgado, and **M. H. Wong**, *Multigrid Methods: Axiomatic Convergence Theory for Linear and Weakly Nonlinear Problems*, De Gruyter, 2025. ISBN: 978-3-11-135488-0. [Publisher page](https://www.degruyterbrill.com/document/isbn/9783111354880/html)
 
-#### Preprints
+### Preprints
 
 - T. Luong, T. Mengesha, K. Stinson, S. M. Wise, and **M. H. Wong**, *The α-Limit Problem: Convergence of a Linear Degenerate Interface Transmission Problem*, arXiv:2609.01237 [math.AP], 2026. [arXiv](https://arxiv.org/abs/2609.01237)
 - **M. H. Wong**, *The symmetric V-cycle can diverge under the multigrid axioms for cell-centred discretisations*, arXiv:2607.23391 [math.NA], 2026. [arXiv](https://arxiv.org/abs/2607.23391)
 
-#### Journal Articles
+### Journal Articles
 
 1. T. Luong, T. Mengesha, S. M. Wise, and **M. H. Wong**, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions II: Gamma-Convergence*, **International Journal of Numerical Analysis and Modeling**, 22(5):728-744, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1031)
 2. T. Luong, T. Mengesha, S. M. Wise, and **M. H. Wong**, *A Diffuse Domain Approximation with Transmission-Type Boundary Conditions I: Asymptotic Analysis and Numerics*, **International Journal of Numerical Analysis and Modeling**, 22(5):694-727, 2025. [DOI](https://doi.org/10.4208/ijnam2025-1030)
 3. **M.-H. Wong**, M. Li, K.-M. Tam, H.-M. Yuen, C.-T. Au, K. C.-C. Chan, A. M. Li, and L.-M. Lui, *A Quasiconformal-Based Geometric Model for Craniofacial Analysis and Its Application*, **Axioms**, 12(4):393, 2023. [DOI](https://doi.org/10.3390/axioms12040393)
 
-### Invited and Conference Talks
+</div>
+
+## Invited and Conference Talks
 
 - **SIAM SEAS 2025 (Invited Talk):** "Gamma-Convergence and Asymptotic Analysis for a Diffuse Domain Problem with Transmission Boundary Conditions: Part 2, Numerical Confirmation"
 - **UARK-SIAM-CSS 2025 Conference (Invited Talk), University of Arkansas, Fayetteville, AR:** "Gamma-Convergence and Asymptotic Analysis for a Diffuse Domain Problem with Transmission Boundary Conditions: Part 2, Numerical Confirmation"
 - **Workshop on Theoretical and Numerical Challenges in Materials Science (2024), University of Alabama**
 - **UROP Workshop (2022), CUHK:** "Preliminary Diagnosis of Childhood Obstructive Sleep Apnea using 2D Images by Quasi-Conformal Geometry"
 
-### Current and Recent Projects
+## Current and Recent Projects
 
 - **Diffuse Domain Methods for Poisson PDE**
   - Asymptotic behavior, numerics, and Gamma-convergence analysis
@@ -53,7 +62,7 @@ published: true
   - Quasiconformal-geometry-based craniofacial analysis from 2D images
   - Classification workflow development for early-stage diagnosis
 
-### Selected Awards
+## Selected Awards
 
 - Spike Tickle STEM Endowed Fellowship (UTK, 2026)
 - Dawn and Lawrence Taylor Graduate Fellowship (UTK, 2025)

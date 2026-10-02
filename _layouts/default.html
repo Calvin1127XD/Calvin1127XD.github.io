@@ -38,6 +38,9 @@
         {% include academic-footer.html %}
       </div>
     </div>
+    {% if page.nav_key == 'home' or page.nav_key == 'github' %}
+    <script src="{{ '/assets/js/bsam-gallery.js' | relative_url }}" defer></script>
+    {% endif %}
     {% include google-analytics.html %}
   </body>
 </html>

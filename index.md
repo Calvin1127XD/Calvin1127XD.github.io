@@ -29,10 +29,10 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <div class="topics">
 <article class="topic"><span class="topic-number" aria-hidden="true">01</span>
 <h3>Diffuse domain methods</h3>
-<p>Poisson problems with transmission-type boundary conditions.</p></article>
+<p>Solving PDEs on complicated geometries without regridding. I study Poisson problems with transmission-type boundary conditions.</p></article>
 <article class="topic"><span class="topic-number" aria-hidden="true">02</span>
 <h3>Multigrid methods</h3>
-<p>Convergence theory for multigrid solvers.</p></article>
+<p>I study convergence theory and implement efficient multigrid solvers for PDEs.</p></article>
 <article class="topic"><span class="topic-number" aria-hidden="true">03</span>
 <h3>Scientific machine learning</h3>
 <p>Graph convolutional networks and deep reinforcement learning for combinatorial optimization.</p></article></div>

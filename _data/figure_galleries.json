@@ -1,0 +1,80 @@
+{
+  "bsam": {
+    "name": "BSAM figures",
+    "item": "figure",
+    "fullLabel": "View full figure",
+    "figures": [
+      {
+        "label": "Solution and mesh",
+        "src": "/assets/images/bsam/starfish-overview.png",
+        "alt": "BSAM starfish transmission example: diffuse-domain solution surface and five-level adaptive mesh around the interface",
+        "width": 2369,
+        "height": 1111,
+        "caption": "Starfish transmission problem: solution and adaptive mesh"
+      },
+      {
+        "label": "Grid hierarchy",
+        "src": "/assets/images/bsam/starfish-hierarchy.png",
+        "alt": "Five levels of the actual BSAM patch hierarchy, from spacing 4/64 to 4/1024, with a close-up of cell edges near the starfish tip",
+        "width": 2406,
+        "height": 1485,
+        "caption": "Grid hierarchy and cell-level close-up"
+      },
+      {
+        "label": "Residual reduction",
+        "src": "/assets/images/bsam/starfish-validation.png",
+        "alt": "Relative algebraic residual decreases over ten V-cycles; adjacent plot shows the adaptive solution minus a uniform 1024-squared numerical reference at fixed interface width",
+        "width": 2310,
+        "height": 986,
+        "caption": "Algebraic residual reduction and comparison with a uniform numerical reference"
+      }
+    ]
+  },
+  "texmacgic": {
+    "name": "TexMacgic App Store screenshots",
+    "item": "screenshot",
+    "fullLabel": "View full screenshot",
+    "figures": [
+      {
+        "label": "Modern editor",
+        "src": "/assets/images/texmacgic-promotions/appstore-promotion-1.png",
+        "alt": "Official TexMacgic promotional screenshot showing the project sidebar, LaTeX source editor, and compiled PDF preview in one workspace",
+        "width": 1440,
+        "height": 900,
+        "caption": "Published App Store screenshot \u00b7 LaTeX source and PDF preview in one workspace"
+      },
+      {
+        "label": "Figure browser",
+        "src": "/assets/images/texmacgic-promotions/appstore-promotion-2.png",
+        "alt": "Official TexMacgic promotional screenshot showing the document figure browser and a TikZ source editor beside its plotted output",
+        "width": 1440,
+        "height": 900,
+        "caption": "Published App Store screenshot \u00b7 Figure browser and TikZ source preview"
+      },
+      {
+        "label": "TikZ drawing",
+        "src": "/assets/images/texmacgic-promotions/appstore-promotion-3.png",
+        "alt": "Official TexMacgic promotional screenshot showing a visual TikZ canvas, drawing controls, generated TikZ code, and the resulting scientific diagram",
+        "width": 1440,
+        "height": 900,
+        "caption": "Published App Store screenshot \u00b7 Visual drawing and editable TikZ"
+      },
+      {
+        "label": "Writing tools",
+        "src": "/assets/images/texmacgic-promotions/appstore-promotion-4.png",
+        "alt": "Official TexMacgic promotional screenshot showing a table builder, symbol canvas, document structure browser, and Git changes sidebar",
+        "width": 1440,
+        "height": 900,
+        "caption": "Published App Store screenshot \u00b7 Tables, symbols, document structure, and Git"
+      },
+      {
+        "label": "Agent workflows",
+        "src": "/assets/images/texmacgic-promotions/appstore-promotion-5.png",
+        "alt": "Official TexMacgic promotional screenshot showing a scientific PDF beside an agent conversation that works with the editor, compiler, and PDF",
+        "width": 1440,
+        "height": 900,
+        "caption": "Published App Store screenshot \u00b7 Agent workflows with the editor, compiler, and PDF"
+      }
+    ]
+  }
+}

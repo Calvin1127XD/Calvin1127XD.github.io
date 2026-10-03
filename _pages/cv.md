@@ -22,7 +22,7 @@ content_class: content-page
 
 ## Appointments
 
-- **Oak Ridge National Laboratory**, Summer Internship Scientist (2024, 2025)
+- **Oak Ridge National Laboratory**, Summer Internship Scientist (summers 2024, 2025, and 2026)
 - **University of Tennessee, Knoxville**
   - Graduate Teaching Assistant (2022-2023)
   - Graduate Teaching Associate (2023-present)

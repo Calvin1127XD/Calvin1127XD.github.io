@@ -1,0 +1,18 @@
+{% assign gallery = include.gallery %}
+<div class="figure-gallery" data-figure-gallery data-item="{{ gallery.item | escape }}" role="region" aria-label="{{ gallery.name | escape }}">
+  <div class="gallery-figures">
+  {% for figure in gallery.figures %}
+  <figure{% if forloop.first %} class="gallery-overview"{% endif %} data-gallery-figure data-label="{{ figure.label | escape }}">
+    <a href="{{ figure.src | relative_url }}"><img src="{{ figure.src | relative_url }}" alt="{{ figure.alt | escape }}" width="{{ figure.width }}" height="{{ figure.height }}" loading="lazy"></a>
+    <figcaption>{{ figure.caption | escape }} · <a href="{{ figure.src | relative_url }}">{{ gallery.fullLabel | escape }}</a></figcaption>
+  </figure>
+  {% endfor %}
+  </div>
+  <div class="gallery-controls" hidden>
+    <button type="button" data-gallery-previous aria-label="Previous {{ gallery.item | escape }}"><span aria-hidden="true">←</span></button>
+    <span class="gallery-status" role="status" aria-live="polite" aria-atomic="true"></span>
+    <button type="button" data-gallery-next aria-label="Next {{ gallery.item | escape }}"><span aria-hidden="true">→</span></button>
+    <button type="button" class="gallery-pause" data-gallery-pause>Pause slideshow</button>
+  </div>
+  <div class="gallery-thumbnails" role="group" aria-label="Choose {{ gallery.item | escape }} from {{ gallery.name | escape }}" hidden></div>
+</div>

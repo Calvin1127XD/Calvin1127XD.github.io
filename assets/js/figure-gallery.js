@@ -1,20 +1,65 @@
 (() => {
   'use strict';
 
-  document.querySelectorAll('[data-bsam-gallery]').forEach(gallery => {
+  document.querySelectorAll('[data-figure-gallery]').forEach((gallery, galleryIndex) => {
     if (gallery.hasAttribute('data-enhanced')) return;
-    const figures = [...gallery.querySelectorAll('[data-bsam-figure]')];
+    const figures = [...gallery.querySelectorAll('[data-gallery-figure]')];
     if (figures.length < 2) return;
-    const stage = gallery.querySelector('.bsam-figures');
-    const controls = gallery.querySelector('.bsam-gallery-controls');
-    const previews = gallery.querySelector('.bsam-gallery-thumbnails');
-    const status = gallery.querySelector('.bsam-gallery-status');
+    const stage = gallery.querySelector('.gallery-figures');
+    const controls = gallery.querySelector('.gallery-controls');
+    const previews = gallery.querySelector('.gallery-thumbnails');
+    const status = gallery.querySelector('.gallery-status');
+    const pause = gallery.querySelector('[data-gallery-pause]');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const pauseKey = `figure-gallery-paused:${window.location.pathname}:${galleryIndex}`;
+    let previouslyPaused = false;
+    try { previouslyPaused = window.sessionStorage.getItem(pauseKey) === 'true'; } catch (_) {}
     let current = 0;
+    let timer = null;
+    let animation = null;
+    let stopped = reducedMotion.matches || previouslyPaused;
+
+    function stopRotation() {
+      stopped = true;
+      // Keep the pause when returning from a full-size image or reloading.
+      try { window.sessionStorage.setItem(pauseKey, 'true'); } catch (_) {}
+      window.clearTimeout(timer);
+      timer = null;
+      gallery.dataset.rotation = 'stopped';
+      status.setAttribute('aria-live', 'polite');
+      pause.textContent = 'Slideshow paused';
+      pause.setAttribute('aria-disabled', 'true');
+    }
+
+    function scheduleNext() {
+      if (stopped || document.hidden || !gallery.isConnected) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (stopped || document.hidden || !gallery.isConnected) return;
+        show(current + 1);
+        scheduleNext();
+      }, 5000);
+    }
+
+    // Capture every interaction before a thumbnail or navigation handler runs.
+    // Focus also stops rotation before keyboard users reach the image controls.
+    ['pointerdown', 'click', 'keydown', 'focusin'].forEach(type => {
+      gallery.addEventListener(type, stopRotation, true);
+    });
+    window.addEventListener('pagehide', stopRotation);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopRotation();
+    });
+    reducedMotion.addEventListener('change', () => {
+      if (!reducedMotion.matches) return;
+      stopRotation();
+      if (animation) animation.cancel();
+    });
 
     const buttons = figures.map((figure, index) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.setAttribute('aria-label', `Show figure ${index + 1}: ${figure.dataset.label}`);
+      button.setAttribute('aria-label', `Show ${gallery.dataset.item || 'figure'} ${index + 1}: ${figure.dataset.label}`);
       const source = figure.querySelector('img');
       source.loading = 'eager';
       source.draggable = false;
@@ -28,29 +73,38 @@
       return button;
     });
 
-    function show(index) {
+    function show(index, fade = true) {
+      const previous = current;
       current = (index + figures.length) % figures.length;
+      if (animation) animation.cancel();
+      animation = null;
       figures.forEach((figure, i) => { figure.hidden = i !== current; });
       buttons.forEach((button, i) => button.setAttribute('aria-pressed', String(i === current)));
       status.textContent = `${current + 1} of ${figures.length} · ${figures[current].dataset.label}`;
+      if (fade && previous !== current && !reducedMotion.matches) {
+        const image = figures[current].querySelector('img');
+        if (image.animate) animation = image.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: 220, easing: 'ease-out'
+        });
+      }
     }
 
     // Reserve the longest caption at the current width, so selecting an image
     // never moves the controls or the content below the gallery.
     function reserveCaptionSpace() {
       const probe = document.createElement('div');
-      probe.className = 'bsam-caption-measure';
+      probe.className = 'gallery-caption-measure';
       probe.setAttribute('aria-hidden', 'true');
       probe.style.width = `${stage.getBoundingClientRect().width}px`;
       figures.forEach(figure => probe.append(figure.querySelector('figcaption').cloneNode(true)));
       gallery.append(probe);
       const height = Math.max(...[...probe.children].map(caption => caption.getBoundingClientRect().height));
       probe.remove();
-      gallery.style.setProperty('--bsam-caption-height', `${Math.ceil(height)}px`);
+      gallery.style.setProperty('--gallery-caption-height', `${Math.ceil(height)}px`);
     }
 
-    gallery.querySelector('[data-bsam-previous]').addEventListener('click', () => show(current - 1));
-    gallery.querySelector('[data-bsam-next]').addEventListener('click', () => show(current + 1));
+    gallery.querySelector('[data-gallery-previous]').addEventListener('click', () => show(current - 1));
+    gallery.querySelector('[data-gallery-next]').addEventListener('click', () => show(current + 1));
     gallery.addEventListener('keydown', event => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const index = { ArrowLeft: current - 1, ArrowRight: current + 1, Home: 0, End: figures.length - 1 }[event.key];
@@ -94,9 +148,16 @@
 
     gallery.setAttribute('data-enhanced', '');
     reserveCaptionSpace();
-    show(0);
+    show(0, false);
     controls.hidden = false;
     previews.hidden = false;
+    if (stopped) {
+      stopRotation();
+    } else {
+      gallery.dataset.rotation = 'running';
+      status.setAttribute('aria-live', 'off');
+      scheduleNext();
+    }
     let measuredWidth = stage.getBoundingClientRect().width;
     if ('ResizeObserver' in window) {
       new ResizeObserver(() => {

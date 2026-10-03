@@ -1,0 +1,72 @@
+{
+  "listing": "https://apps.apple.com/us/app/texmacgic/id6804365513",
+  "lookup": "https://itunes.apple.com/lookup?id=6804365513&country=us",
+  "trackId": 6804365513,
+  "trackName": "TexMacgic",
+  "sellerName": "Ming Hei Wong",
+  "bundleId": "com.texmacgic.app",
+  "publicVersionInLookup": "1.0.0",
+  "retrievedAt": "2026-10-03T15:00:12.495621+00:00",
+  "screenshots": [
+    {
+      "order": 1,
+      "lookupImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/55/fe/d7/55fed747-5cc5-7731-9273-4c459cd1d3a2/TexMacgic-Promotion-v3.001.png/800x500bb.jpg",
+      "downloadedImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/55/fe/d7/55fed747-5cc5-7731-9273-4c459cd1d3a2/TexMacgic-Promotion-v3.001.png/1600x1000bb.png",
+      "file": "appstore-promotion-1.png",
+      "dimensions": [
+        1440,
+        900
+      ],
+      "bytes": 752984,
+      "sha256": "5f28e20dddd3d5eff0bb4017ab1b404d841041f63e0b2152fb1b5bf875ba8d3d"
+    },
+    {
+      "order": 2,
+      "lookupImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/2e/f3/a5/2ef3a5fe-e542-00fc-ca4e-cc4a7ab8276b/TexMacgic-Promotion-v3.003.png/800x500bb.jpg",
+      "downloadedImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/2e/f3/a5/2ef3a5fe-e542-00fc-ca4e-cc4a7ab8276b/TexMacgic-Promotion-v3.003.png/1600x1000bb.png",
+      "file": "appstore-promotion-2.png",
+      "dimensions": [
+        1440,
+        900
+      ],
+      "bytes": 495354,
+      "sha256": "7de49e0adf4fa080cf8c859a44018f4d24f272e1077536dbebedca86169e45a4"
+    },
+    {
+      "order": 3,
+      "lookupImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/a6/28/21/a62821c4-3c59-78fa-34b7-d10c76673798/TexMacgic-Promotion-v3.004.png/800x500bb.jpg",
+      "downloadedImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/a6/28/21/a62821c4-3c59-78fa-34b7-d10c76673798/TexMacgic-Promotion-v3.004.png/1600x1000bb.png",
+      "file": "appstore-promotion-3.png",
+      "dimensions": [
+        1440,
+        900
+      ],
+      "bytes": 714173,
+      "sha256": "2e3c6d3933c0b973106b17fa57a6c0801c78368a026cae09071535091f915aa7"
+    },
+    {
+      "order": 4,
+      "lookupImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/3d/80/49/3d80490b-028a-172c-7276-0f99318c1943/TexMacgic-Promotion-v3.005.png/800x500bb.jpg",
+      "downloadedImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/3d/80/49/3d80490b-028a-172c-7276-0f99318c1943/TexMacgic-Promotion-v3.005.png/1600x1000bb.png",
+      "file": "appstore-promotion-4.png",
+      "dimensions": [
+        1440,
+        900
+      ],
+      "bytes": 584094,
+      "sha256": "8587d6dcddb2f37267d725a92051d58c87612b539c496a17b3edfc5dd71c7ed0"
+    },
+    {
+      "order": 5,
+      "lookupImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/b0/53/29/b05329a3-caa6-f3a7-9898-15f05af47fe9/TexMacgic-Promotion-v3.006.png/800x500bb.jpg",
+      "downloadedImageUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/b0/53/29/b05329a3-caa6-f3a7-9898-15f05af47fe9/TexMacgic-Promotion-v3.006.png/1600x1000bb.png",
+      "file": "appstore-promotion-5.png",
+      "dimensions": [
+        1440,
+        900
+      ],
+      "bytes": 651564,
+      "sha256": "3a27011ab59a1bbf94b9b9264e000c83d50e9f2d4d033afcd03433a3aede9f64"
+    }
+  ]
+}

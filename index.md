@@ -68,7 +68,7 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <div>
 <p class="eyebrow">Internships</p>
 <h2>Oak Ridge National Laboratory</h2>
-<p>I served as a Summer Internship Scientist at Oak Ridge National Laboratory in 2024 and 2025. My work there involved computational optimization and machine learning for scientific applications.</p></div>
+<p>I served as a Summer Internship Scientist at Oak Ridge National Laboratory in the summers of 2024, 2025, and 2026. My work there involved computational optimization and machine learning for scientific applications.</p></div>
 <div>
 <p class="eyebrow">Teaching &amp; projects</p>
 <h2>Teaching and software</h2>

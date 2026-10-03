@@ -12,7 +12,7 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <p class="eyebrow">PhD student in Mathematics</p>
 <h1>Calvin Wong</h1>
 <p class="hero-lead">I am a PhD student in Mathematics at the University of Tennessee, Knoxville, expecting to graduate in 2027. My interests span applied mathematics, scientific machine learning, and agentic coding, with current work on numerical PDEs, multigrid methods, and learning-based optimization.</p>
-<div class="actions"><a class="button primary" href="{{ '/research/' | relative_url }}">Research <span aria-hidden="true">→</span></a><a class="button secondary" href="{{ '/files/CV/CalvinCV_October1_2026.pdf' | relative_url }}">View CV <span aria-hidden="true">↗</span></a></div>
+<div class="actions"><a class="button primary" href="{{ '/research/' | relative_url }}">Research <span aria-hidden="true">→</span></a><a class="button secondary" href="{{ '/files/CV/CalvinCV_October3_2026.pdf' | relative_url }}">View CV <span aria-hidden="true">↗</span></a></div>
 <div class="research-visual bsam-highlight" id="current-focus">
 <div class="bsam-highlight-intro">
 <p class="eyebrow">Current focus</p>

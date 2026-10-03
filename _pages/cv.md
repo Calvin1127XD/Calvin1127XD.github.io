@@ -11,7 +11,7 @@ content_class: content-page
 
 ## Full CV (PDF)
 
-- [Download CV - October 1, 2026]({{ '/files/CV/CalvinCV_October1_2026.pdf' | relative_url }})
+- [Download CV - October 3, 2026]({{ '/files/CV/CalvinCV_October3_2026.pdf' | relative_url }})
 
 ## Education
 

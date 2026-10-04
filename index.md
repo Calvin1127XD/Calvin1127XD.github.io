@@ -13,14 +13,6 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <h1>Calvin Wong</h1>
 <p class="hero-lead">I am a PhD student in Mathematics at the University of Tennessee, Knoxville, expecting to graduate in 2027. My interests span applied mathematics, scientific machine learning, and agentic coding, with current work on numerical PDEs, multigrid methods, and learning-based optimization.</p>
 <div class="actions"><a class="button primary" href="{{ '/research/' | relative_url }}">Research <span aria-hidden="true">→</span></a><a class="button secondary" href="{{ '/files/CV/CalvinCV_October3_2026.pdf' | relative_url }}">View CV <span aria-hidden="true">↗</span></a></div>
-<div class="research-visual bsam-highlight" id="current-focus">
-<div class="bsam-highlight-intro">
-<p class="eyebrow">Current focus</p>
-<h2>Block-structured adaptive multigrid</h2>
-<p>BSAM in MATLAB provides solvers for two-dimensional elliptic, parabolic, and diffuse-domain problems, with refinement concentrated where the solution or geometry needs it.</p>
-<a class="text-link" href="https://github.com/Calvin1127XD/BSAM-in-MATLAB">BSAM in MATLAB <span aria-hidden="true">↗</span></a></div>
-{% include bsam-gallery.html %}
-</div></section>
 <section class="section" id="research-interests">
 <div class="section-heading">
 <div>
@@ -37,6 +29,15 @@ description: Calvin (Ming-Hei) Wong, PhD student in Mathematics at the Universit
 <h3>Scientific machine learning</h3>
 <p>Graph convolutional networks and deep reinforcement learning for combinatorial optimization.</p></article></div>
 <p class="additional">Other research interests include finite difference and finite element analysis, mathematical imaging, differential geometry, and quasiconformal methods.</p></section>
+<div class="research-visual bsam-highlight" id="current-focus">
+<div class="bsam-highlight-intro">
+<p class="eyebrow">Current focus</p>
+<h2>Block-structured adaptive multigrid</h2>
+<p>BSAM in MATLAB provides solvers for two-dimensional elliptic, parabolic, and diffuse-domain problems, with refinement concentrated where the solution or geometry needs it.</p>
+<a class="text-link" href="https://github.com/Calvin1127XD/BSAM-in-MATLAB">BSAM in MATLAB <span aria-hidden="true">↗</span></a></div>
+{% include bsam-gallery.html %}
+</div></section>
+
 <section class="section" id="publications">
 <div class="section-heading">
 <div>
